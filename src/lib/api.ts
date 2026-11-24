@@ -25,7 +25,7 @@ type Store = {
   videos: Video[]; entries: Entry[]; likes: { user_id: string; video_id: string }[];
   shortlists: Shortlist[]; briefs: Brief[]; tasks: Task[]; submissions: TaskSubmission[];
   conversations: Conversation[]; messages: Message[]; reports: Report[]; resources: Resource[];
-  settings: { notify_email: string; from_email: string; site_url: string; drop_applied: number; drop_accepted: number };
+  settings: { notify_email: string; from_email: string; site_url: string; drop_applied: number; drop_accepted: number; upgrade_price: string; upgrade_link: string };
   session: string | null;
 };
 const KEY_STORE = "vetta-preview-v7";
@@ -37,7 +37,7 @@ function S(): Store {
   mem.s = s ?? {
     profiles: SEED_PROFILES.map((p) => ({ ...p, password: DEMO_PASSWORD })),
     videos: SEED_VIDEOS, entries: [], likes: [], shortlists: [], briefs: [], tasks: SEED_TASKS, submissions: [],
-    conversations: [], messages: [], reports: [], resources: SEED_RESOURCES, settings: { notify_email: "", from_email: "", site_url: "", drop_applied: 0, drop_accepted: 0 }, session: null,
+    conversations: [], messages: [], reports: [], resources: SEED_RESOURCES, settings: { notify_email: "", from_email: "", site_url: "", drop_applied: 0, drop_accepted: 0, upgrade_price: "$99", upgrade_link: "" }, session: null,
   };
   return mem.s!;
 }
@@ -371,6 +371,11 @@ export async function confirmBrief(id: string, token: string, picked: string[]) 
   if (DEMO) { const b = S().briefs.find((x) => x.id === id && x.token === token); if (b && b.status === "draft") { b.status = "new"; b.picked = picked; const m = me(); if (!b.brand_id && m?.role === "brand") b.brand_id = m.id; } save(); return; }
   const r = await sb!.rpc("confirm_brief", { p_id: id, p_token: token, p_picked: picked }); if (r.error) throw new Error(r.error.message);
 }
+/** Brief Upgrade: the brand asks Vetta for research and a sharper brief. */
+export async function requestUpgrade(id: string, token: string) {
+  if (DEMO) { const b = S().briefs.find((x) => x.id === id && x.token === token); if (b) b.upgrade_requested = true; save(); return; }
+  const r = await sb!.rpc("request_brief_upgrade", { p_id: id, p_token: token }); if (r.error) throw new Error(r.error.message);
+}
 export async function stopBriefEmails(id: string, token: string) {
   if (DEMO) { const b = S().briefs.find((x) => x.id === id && x.token === token); if (b) b.unsubscribed = true; save(); return; }
   const r = await sb!.rpc("stop_brief_emails", { p_id: id, p_token: token }); if (r.error) throw new Error(r.error.message);
@@ -438,8 +443,8 @@ export async function mySubmissions(): Promise<TaskSubmission[]> {
 }
 
 /* ============================ messages: everyone talks to the Vetta team ============================ */
-export async function publicSettings(): Promise<{ drop_applied?: number; drop_accepted?: number }> {
-  if (DEMO) { const { drop_applied, drop_accepted } = S().settings; return { drop_applied, drop_accepted }; }
+export async function publicSettings(): Promise<{ drop_applied?: number; drop_accepted?: number; upgrade_price?: string; upgrade_link?: string }> {
+  if (DEMO) { const { drop_applied, drop_accepted, upgrade_price, upgrade_link } = S().settings; return { drop_applied, drop_accepted, upgrade_price, upgrade_link }; }
   const r = await sb!.rpc("public_settings");
   return (r.data as any) ?? {};
 }
@@ -556,6 +561,10 @@ export const admin = {
     const { id, created_at: _c, ...row } = t;
     if (id) must(await sb!.from("tasks").update(row).eq("id", id)); else must(await sb!.from("tasks").insert(row));
   },
+  async deleteTask(id: string) {
+    if (DEMO) { S().tasks = S().tasks.filter((t) => t.id !== id); S().submissions = S().submissions.filter((s) => s.task_id !== id); save(); return; }
+    must(await sb!.from("tasks").delete().eq("id", id));
+  },
   async submissions(): Promise<TaskSubmission[]> {
     if (DEMO) return clone(S().submissions);
     return must(await sb!.from("task_submissions").select("*").order("created_at", { ascending: false })) as TaskSubmission[];
@@ -595,11 +604,11 @@ export const admin = {
   },
   async settings(): Promise<Settings> {
     if (DEMO) return { ...S().settings, resend_key_set: false };
-    const r = must(await sb!.from("settings").select("notify_email, resend_key, from_email, site_url, drop_applied, drop_accepted").eq("id", 1).maybeSingle()) as any;
+    const r = must(await sb!.from("settings").select("notify_email, resend_key, from_email, site_url, drop_applied, drop_accepted, upgrade_price, upgrade_link").eq("id", 1).maybeSingle()) as any;
     return { notify_email: r?.notify_email ?? "", resend_key_set: !!r?.resend_key, from_email: r?.from_email ?? "", site_url: r?.site_url ?? "",
-      drop_applied: r?.drop_applied ?? 0, drop_accepted: r?.drop_accepted ?? 0 };
+      drop_applied: r?.drop_applied ?? 0, drop_accepted: r?.drop_accepted ?? 0, upgrade_price: r?.upgrade_price ?? "", upgrade_link: r?.upgrade_link ?? "" };
   },
-  async saveSettings(p: { notify_email?: string; resend_key?: string; from_email?: string; site_url?: string; drop_applied?: number; drop_accepted?: number }) {
+  async saveSettings(p: { notify_email?: string; resend_key?: string; from_email?: string; site_url?: string; drop_applied?: number; drop_accepted?: number; upgrade_price?: string; upgrade_link?: string }) {
     if (DEMO) { const { resend_key: _k, ...rest } = p; Object.assign(S().settings, rest); save(); return; }
     must(await sb!.from("settings").update(p).eq("id", 1));
   },

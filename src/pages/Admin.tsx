@@ -237,7 +237,7 @@ function Briefs() {
       {!list.length && <p className="muted">{show === "draft" ? "No unbooked matches." : "No briefs yet."}</p>}
       <ul className="arows">{list.map((b) => (
         <li key={b.id} className="brief-row card">
-          <div className="sec-row"><b>{b.company}</b><span className="muted">{b.contact_name} | <a href={`mailto:${b.email}`}>{b.email}</a> | {timeAgo(b.created_at)}</span>
+          <div className="sec-row"><b>{b.company}</b>{b.upgrade_requested && <span className="status status--new">Brief Upgrade requested</span>}<span className="muted">{b.contact_name} | <a href={`mailto:${b.email}`}>{b.email}</a> | {timeAgo(b.created_at)}</span>
             <select aria-label="Status" value={b.status} onChange={async (e) => { await admin.updateBrief(b.id, { status: e.target.value as any }); load(); }}>{b.status === "draft" && <option value="draft">Not booked</option>}<option value="new">New</option><option value="in_talks">In talks</option><option value="won">Won</option><option value="closed">Closed</option></select></div>
           <p className="muted">{b.creator_id ? "For one creator" : b.niches.map(nicheName).join(", ")} | {b.budget} | {b.timeline}{b.city ? ` | ${b.city}` : ""}{b.brand_id ? " | has account" : ""}{b.status === "draft" ? ` | follow-ups sent: ${b.followup_stage ?? 0} of 3${b.unsubscribed ? ", stopped" : ""}` : ""}</p>
           {b.whatsapp && <p className="small">{b.whatsapp_optin ? <a href={`https://wa.me/${b.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer">WhatsApp {b.whatsapp}</a> : <span className="muted">WhatsApp {b.whatsapp} (didn't opt in to messages)</span>}{b.picked?.length ? ` | picked ${b.picked.length} of ${b.matched?.length ?? 0} matches` : ""}</p>}
@@ -251,7 +251,7 @@ function Briefs() {
 /* ---------- tasks ---------- */
 function TasksAdmin() {
   const [tasks, setTasks] = useState<Task[] | null>(null); const [subs, setSubs] = useState<TaskSubmission[]>([]);
-  const [people, setPeople] = useState<Record<string, Profile>>({}); const [edit, setEdit] = useState<Partial<Task> | null>(null);
+  const [people, setPeople] = useState<Record<string, Profile>>({}); const [edit, setEdit] = useState<Partial<Task> | null>(null); const [del, setDel] = useState("");
   const load = async () => { const t = await admin.tasks(); setTasks(t); const s = await admin.submissions(); setSubs(s); setPeople(await getProfilesByIds(s.map((x) => x.user_id))); };
   useEffect(() => { load(); }, []);
   if (!tasks) return <Loading />;
@@ -267,6 +267,9 @@ function TasksAdmin() {
             {t.status === "pending" && <><button className="link-btn" onClick={async () => { await admin.saveTask({ id: t.id, status: "live" }); load(); }}>Approve</button><button className="link-btn link-btn--danger" onClick={async () => { await admin.saveTask({ id: t.id, status: "rejected" }); load(); }}>Reject</button></>}
             {t.status === "live" && <button className="link-btn" onClick={async () => { await admin.saveTask({ id: t.id, status: "ended" }); load(); }}>End</button>}
             <button className="link-btn" onClick={() => setEdit(t)}>Edit</button>
+            {del === t.id
+              ? <button className="link-btn link-btn--danger" onClick={async () => { try { await admin.deleteTask(t.id); toast("Gig deleted"); setDel(""); load(); } catch (x: any) { toast(x.message); } }}>Confirm delete</button>
+              : <button className="link-btn link-btn--danger" onClick={() => setDel(t.id)}>Delete</button>}
           </span>
         </li>
       ))}</ul>
@@ -379,8 +382,19 @@ function SettingsTab() {
         save({ drop_applied: s.drop_applied, drop_accepted: s.drop_accepted }, "Drop numbers saved");
       }}>Save Drop numbers</button></div>
 
+      <h2 className="h3" style={{ marginTop: 28 }}>Brief Upgrade</h2>
+      <p className="muted">A paid add-on offered under a brand's matches: market research on their category, the gaps competitors leave, what's working, and a sharper brief with a hand-picked shortlist. Leave the price empty to hide the offer.</p>
+      <div className="row2">
+        <Field label="Price shown to brands" id="aup" hint="For example: $99 or ₦75,000"><input id="aup" value={s.upgrade_price} onChange={(e) => setS({ ...s, upgrade_price: e.target.value })} /></Field>
+        <Field label="Payment link" id="aul" optional hint="A Paystack payment link. Without one, we email the brand to arrange payment."><input id="aul" type="url" value={s.upgrade_link} onChange={(e) => setS({ ...s, upgrade_link: e.target.value })} placeholder="https://paystack.com/pay/..." /></Field>
+      </div>
+      <div className="form-nav"><button className="btn btn--soft" onClick={() => {
+        if (s.upgrade_link && !/^https:\/\/\S+$/.test(s.upgrade_link.trim())) { toast("Use the full link, starting with https://"); return; }
+        save({ upgrade_price: s.upgrade_price.trim(), upgrade_link: s.upgrade_link.trim() }, "Brief Upgrade saved");
+      }}>Save Brief Upgrade</button></div>
+
       <h2 className="h3" style={{ marginTop: 28 }}>Email</h2>
-      <p className="muted">Alerts about new entries, briefs, campaigns, messages and reports go to you. Brands who see matches but don't book get three follow-up emails, at 15 minutes, 24 hours and 72 hours. Follow-ups need all four fields.</p>
+      <p className="muted">Alerts about new entries, briefs, campaigns, messages and reports go to you. Brands get their matches by email within minutes. If they don't book, they get two more emails, at 24 and 72 hours. Follow-ups need all four fields.</p>
       <Field label="Send alerts to" id="ane" hint="Brands' replies to follow-ups come here too."><input id="ane" type="email" value={s.notify_email} onChange={(e) => setS({ ...s, notify_email: e.target.value })} placeholder="you@example.com" /></Field>
       <Field label="Send follow-ups from" id="afr" hint="An address on a domain you've verified in Resend, e.g. Samuel at Vetta <samuel@yourdomain.com>"><input id="afr" value={s.from_email} onChange={(e) => setS({ ...s, from_email: e.target.value })} placeholder="Samuel at Vetta <samuel@yourdomain.com>" /></Field>
       <Field label="Your live site link" id="asu" hint="Used for the links in follow-up emails."><input id="asu" type="url" value={s.site_url} onChange={(e) => setS({ ...s, site_url: e.target.value })} placeholder={window.location.origin} /></Field>

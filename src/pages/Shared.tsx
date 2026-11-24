@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { A, Avatar, Chips, Field, Icon, Sheet, Verified, toast } from "../components/ui";
 import { NICHES, nicheName, tierName } from "../config";
-import { confirmBrief, createShortlist, myShortlists, report, setInShortlist, startBrief, stopBriefEmails } from "../lib/api";
+import { confirmBrief, createShortlist, myShortlists, publicSettings, report, requestUpgrade, setInShortlist, startBrief, stopBriefEmails } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { BriefDraft, CreatorCard, Profile, Shortlist } from "../lib/types";
 
@@ -95,6 +95,26 @@ function MatchCard({ c, picked, onPick }: { c: CreatorCard; picked: boolean; onP
   );
 }
 
+/** Paid add-on: Vetta researches the category and sharpens the brief. */
+function UpgradeOffer({ draft }: { draft: BriefDraft }) {
+  const [s, setS] = useState<{ upgrade_price?: string; upgrade_link?: string } | null>(null);
+  const [asked, setAsked] = useState(false); const [busy, setBusy] = useState(false);
+  useEffect(() => { publicSettings().then(setS).catch(() => setS({})); }, []);
+  if (!s?.upgrade_price) return null;
+  return (
+    <div className="upgrade card">
+      <h4 className="h3">Want a sharper brief first?</h4>
+      <p className="muted">The Brief Upgrade: we research your category, show what's working, the gaps your competitors leave and how to own them, then rewrite your brief and hand-pick your shortlist. Delivered within 48 hours.</p>
+      {asked
+        ? <p className="small"><b>Requested.</b> {s.upgrade_link ? "If the payment page didn't open, " : ""}{s.upgrade_link ? <a href={s.upgrade_link} target="_blank" rel="noreferrer">pay here</a> : "We'll email you to arrange payment"}{s.upgrade_link ? ". We start as soon as it's paid." : " and start as soon as it's paid."}</p>
+        : <button className="btn btn--soft" disabled={busy} onClick={async () => {
+            setBusy(true);
+            try { await requestUpgrade(draft.id, draft.token); setAsked(true); if (s.upgrade_link) window.open(s.upgrade_link, "_blank", "noopener"); } catch (x: any) { toast(x.message); } finally { setBusy(false); }
+          }}>Get the Brief Upgrade, {s.upgrade_price}</button>}
+    </div>
+  );
+}
+
 /** Matched creators for a draft brief, with the "Book through Vetta" step. */
 export function MatchView({ draft, email, resumed, onBooked }: { draft: BriefDraft; email: string; resumed?: boolean; onBooked?: () => void }) {
   const { user } = useAuth();
@@ -122,6 +142,7 @@ export function MatchView({ draft, email, resumed, onBooked }: { draft: BriefDra
           try { await confirmBrief(draft.id, draft.token, picked); setBooked(true); onBooked?.(); } catch (x: any) { toast(x.message); } finally { setBusy(false); }
         }}>{busy ? "Booking…" : "Book through Vetta"}</button>
         <p className="small muted">You pay the creator's rate plus a Vetta fee, shown before you pay. If a video misses the brief, we reshoot it or replace the creator.</p>
+        <UpgradeOffer draft={draft} />
         {resumed && !stopped && <button className="link-btn small" onClick={async () => { await stopBriefEmails(draft.id, draft.token); setStopped(true); toast("We won't email you about this brief again"); }}>Stop these emails</button>}
       </div>
     </div>

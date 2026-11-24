@@ -52,7 +52,9 @@ create table public.settings (
   from_email text not null default '',      -- e.g. Vetta <hello@yourdomain.com>, a domain verified in Resend
   site_url text not null default '',        -- your live link, used in follow-up emails
   drop_applied integer not null default 0,  -- published on the About page
-  drop_accepted integer not null default 0
+  drop_accepted integer not null default 0,
+  upgrade_price text not null default '',   -- e.g. $99 or ₦75,000, shown on the Brief Upgrade offer
+  upgrade_link text not null default ''     -- a Paystack payment link for the Brief Upgrade
 );
 insert into public.settings (id) values (1);
 
@@ -139,6 +141,7 @@ create table public.briefs (
   picked uuid[] not null default '{}',
   followup_stage smallint not null default 0,
   unsubscribed boolean not null default false,
+  upgrade_requested boolean not null default false,
   confirmed_at timestamptz
 );
 create index on public.briefs (status, created_at);
@@ -297,7 +300,7 @@ end $$;
 grant execute on function public.my_thread() to authenticated;
 
 create or replace function public.public_settings() returns json language sql stable security definer set search_path = public as $$
-  select json_build_object('drop_applied', drop_applied, 'drop_accepted', drop_accepted) from public.settings where id = 1;
+  select json_build_object('drop_applied', drop_applied, 'drop_accepted', drop_accepted, 'upgrade_price', upgrade_price, 'upgrade_link', upgrade_link) from public.settings where id = 1;
 $$;
 grant execute on function public.public_settings() to anon, authenticated;
 
@@ -482,12 +485,23 @@ begin
 end $$;
 grant execute on function public.confirm_brief(uuid, uuid, uuid[]) to anon, authenticated;
 
+-- Brief Upgrade: the brand asks Vetta for market research and a sharper brief (paid add-on).
+create or replace function public.request_brief_upgrade(p_id uuid, p_token uuid) returns void language plpgsql security definer set search_path = public as $$
+declare b public.briefs;
+begin
+  update public.briefs set upgrade_requested = true where id = p_id and token = p_token and not upgrade_requested returning * into b;
+  if b.id is not null then
+    perform public.send_alert('Brief Upgrade requested: ' || b.company, b.contact_name || ' (' || b.email || ') wants the Brief Upgrade for their brief. Check payment, then deliver the research and sharper brief. See Admin > Briefs.');
+  end if;
+end $$;
+grant execute on function public.request_brief_upgrade(uuid, uuid) to anon, authenticated;
+
 create or replace function public.stop_brief_emails(p_id uuid, p_token uuid) returns void language plpgsql security definer set search_path = public as $$
 begin update public.briefs set unsubscribed = true where id = p_id and token = p_token; end $$;
 grant execute on function public.stop_brief_emails(uuid, uuid) to anon, authenticated;
 
 -- ===================================================================== follow-ups for brands who match but don't book
--- 15 minutes, 24 hours and 72 hours after a draft brief. Stops when they book or tap "stop these emails".
+-- Within minutes, then 24 hours and 72 hours after a draft brief. Stops when they book or tap "stop these emails".
 create or replace function public.send_brief_followups() returns integer language plpgsql security definer set search_path = public as $$
 declare s public.settings; b public.briefs; n int := 0; link text; names text; first text; subj text; body text;
 begin
@@ -495,7 +509,7 @@ begin
   if s.resend_key = '' or s.from_email = '' or s.site_url = '' then return 0; end if;
   for b in select * from public.briefs where status = 'draft' and not unsubscribed and followup_stage < 3
       and created_at > now() - interval '10 days'
-      and ((followup_stage = 0 and created_at < now() - interval '15 minutes')
+      and ((followup_stage = 0 and created_at < now() - interval '1 minute')
         or (followup_stage = 1 and created_at < now() - interval '24 hours')
         or (followup_stage = 2 and created_at < now() - interval '72 hours'))
       order by created_at limit 50 loop
@@ -599,6 +613,7 @@ create policy tasks_read on public.tasks for select using (status = 'live' or cr
 create policy tasks_propose on public.tasks for insert with check (
   (created_by = auth.uid() and status = 'pending' and public.my_role() = 'brand' and public.is_active()) or public.is_admin());
 create policy tasks_admin on public.tasks for update using (public.is_admin()) with check (public.is_admin());
+create policy tasks_delete on public.tasks for delete using (public.is_admin());
 
 create policy subs_insert on public.task_submissions for insert with check (
   user_id = auth.uid() and public.my_role() = 'creator' and public.is_active() and status = 'pending' and verified_views is null

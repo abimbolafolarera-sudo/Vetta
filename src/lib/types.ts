@@ -110,6 +110,7 @@ export type Brief = {
   matched?: string[];
   picked?: string[];
   followup_stage?: number;
+  upgrade_requested?: boolean;
   unsubscribed?: boolean;
   token?: string;
 };
@@ -165,7 +166,7 @@ export type Report = {
   target_type: "profile" | "video" | "message"; target_id: string; reason: string; status: "open" | "resolved";
 };
 
-export type Settings = { notify_email: string; resend_key_set: boolean; from_email: string; site_url: string; drop_applied: number; drop_accepted: number };
+export type Settings = { notify_email: string; resend_key_set: boolean; from_email: string; site_url: string; drop_applied: number; drop_accepted: number; upgrade_price: string; upgrade_link: string };
 
 export type Resource = {
   id: string; created_at: string;
