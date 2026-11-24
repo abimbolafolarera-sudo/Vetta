@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { A, Avatar, Chips, Field, Icon, Sheet, Verified, toast } from "../components/ui";
-import { NICHES, nicheName } from "../config";
+import { NICHES, nicheName, tierName } from "../config";
 import { confirmBrief, createShortlist, myShortlists, report, setInShortlist, startBrief, stopBriefEmails } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { BriefDraft, CreatorCard, Profile, Shortlist } from "../lib/types";
@@ -87,7 +87,7 @@ function MatchCard({ c, picked, onPick }: { c: CreatorCard; picked: boolean; onP
       <Avatar p={c} size={52} />
       <div className="match__main">
         <p className="match__name"><A page="u" arg={c.handle}>{c.display_name}</A> <Verified size={15} /></p>
-        <p className="match__meta">{[c.niches.slice(0, 2).map(nicheName).join(", "), [c.city, c.country].filter(Boolean).join(", ")].filter(Boolean).join(" | ")}</p>
+        <p className="match__meta">{[c.tier ? tierName(c.tier) : "", c.niches.slice(0, 2).map(nicheName).join(", "), [c.city, c.country].filter(Boolean).join(", ")].filter(Boolean).join(" | ")}</p>
         <p className="match__rate">{rateText(c)}</p>
         <Scorecard c={c} compact />
       </div>

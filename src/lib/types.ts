@@ -16,6 +16,7 @@ export type Profile = {
   region?: string | null; // state or province
   country?: string | null;
   work_mode?: "remote" | "onsite" | "hybrid" | null;
+  tier?: "nano" | "micro" | "mid" | "macro" | "mega" | null;
   open_to_travel?: boolean;
   links: Link[];
   niches: string[];
@@ -67,6 +68,7 @@ export type Entry = {
   city?: string;
   region?: string;
   work_mode?: "remote" | "onsite" | "hybrid";
+  tier?: "nano" | "micro" | "mid" | "macro" | "mega";
   handles: string;
   level: string;
   niches: string[];
@@ -113,7 +115,7 @@ export type Brief = {
 };
 
 // What a brand sees for a matched creator.
-export type CreatorCard = Pick<Profile, "id" | "handle" | "display_name" | "avatar_url" | "niches" | "formats" | "city" | "country" | "work_mode"
+export type CreatorCard = Pick<Profile, "id" | "handle" | "display_name" | "avatar_url" | "niches" | "formats" | "city" | "country" | "work_mode" | "tier"
   | "rate_from" | "rate_to" | "jobs_done" | "on_time_pct" | "brand_rating" | "hook_rate" | "vetted">;
 export type BriefDraft = { id: string; token: string; matches: CreatorCard[]; company?: string; contact_name?: string; email?: string; status?: Brief["status"]; unsubscribed?: boolean };
 

@@ -20,6 +20,7 @@ create table public.profiles (
   region text check (char_length(region) <= 60),
   country text check (char_length(country) <= 60),
   work_mode text check (work_mode in ('remote','onsite','hybrid')),
+  tier text check (tier in ('nano','micro','mid','macro','mega')),
   open_to_travel boolean not null default false,
   links jsonb not null default '[]',
   niches text[] not null default '{}',
@@ -86,6 +87,7 @@ create table public.entries (
   city text check (char_length(city) <= 80),
   region text check (char_length(region) <= 80),
   work_mode text check (work_mode in ('remote','onsite','hybrid')),
+  tier text check (tier in ('nano','micro','mid','macro','mega')),
   handles text not null check (char_length(handles) <= 300),
   level text not null,
   niches text[] not null default '{}',
@@ -357,7 +359,7 @@ begin
     niches = case when niches = '{}' then e.niches else niches end,
     formats = case when formats = '{}' then e.formats else formats end,
     city = coalesce(city, nullif(e.city, '')), region = coalesce(region, nullif(e.region, '')), country = coalesce(country, e.country),
-    work_mode = coalesce(work_mode, e.work_mode),
+    work_mode = coalesce(work_mode, e.work_mode), tier = coalesce(tier, e.tier),
     location = case when location = '' then concat_ws(', ', nullif(e.city, ''), nullif(e.region, ''), e.country) else location end
     where id = e.user_id;
   update public.videos set kind = 'post' where id = e.showcase_video_id and status in ('ready','processing');
@@ -414,7 +416,7 @@ create trigger messages_alert after insert on public.messages for each row execu
 -- Public card for a matched creator: no private fields.
 create or replace function public.creator_card(p public.profiles) returns json language sql stable as $$
   select json_build_object('id', p.id, 'handle', p.handle, 'display_name', p.display_name, 'avatar_url', p.avatar_url,
-    'niches', p.niches, 'formats', p.formats, 'city', p.city, 'country', p.country, 'work_mode', p.work_mode,
+    'niches', p.niches, 'formats', p.formats, 'city', p.city, 'country', p.country, 'work_mode', p.work_mode, 'tier', p.tier,
     'rate_from', p.rate_from, 'rate_to', p.rate_to, 'jobs_done', p.jobs_done, 'on_time_pct', p.on_time_pct,
     'brand_rating', p.brand_rating, 'hook_rate', p.hook_rate, 'vetted', p.vetted);
 $$;

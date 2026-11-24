@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { A, Chips, Countdown, Field, Icon, Loading, Mark, formatDate, toast } from "../components/ui";
 import { Player } from "../components/Video";
-import { EARN, FORMATS, NICHES, WORK_MODES, config } from "../config";
+import { EARN, FORMATS, NICHES, TIERS, WORK_MODES, config } from "../config";
 import { myEntry, submitEntry, uploadVideo } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { Entry, Video, WorkLink } from "../lib/types";
@@ -116,7 +116,7 @@ function WhatToSubmit() {
     <div className="card">
       <h2 className="h3">What you'll submit</h2>
       <ul className="ticks">
-        <li>A showcase video, 30 to 90 seconds: a day in the life, a skit, a spec ad, anything that shows how you think</li>
+        <li>One entry video, 30 to 90 seconds: your portfolio as a video, made as creatively as you can. Why put your best work in a document when you make videos?</li>
         <li>Links to up to five pieces of past work, with results if you have them</li>
         <li>Your niches and the formats you make</li>
       </ul>
@@ -129,7 +129,7 @@ function EntryForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false); const [fail, setFail] = useState(""); const [done, setDone] = useState(false);
   const [f, setF] = useState({
-    country: "", city: "", region: "", work_mode: "" as "" | "remote" | "onsite" | "hybrid", handles: "", level: "", niches: [] as string[], formats: [] as string[], brands_worked: "", best_result: "",
+    country: "", city: "", region: "", work_mode: "" as "" | "remote" | "onsite" | "hybrid", tier: "" as "" | "nano" | "micro" | "mid" | "macro" | "mega", handles: "", level: "", niches: [] as string[], formats: [] as string[], brands_worked: "", best_result: "",
     showcase_video_id: null as string | null, showcase_url: "", showcase_note: "", work_links: [{ url: "", brand: "", result: "" }] as WorkLink[],
     consent_feature: false, consent_terms: false, useLink: false,
   });
@@ -138,10 +138,10 @@ function EntryForm() {
 
   function validate(s: number) {
     const e: Record<string, string> = {};
-    if (s === 0) { if (!f.country.trim()) e.country = "Add the country you're based in."; if (!f.city.trim()) e.city = "Add your city. Brands look for creators near them."; if (!f.work_mode) e.work_mode = "Choose how you work."; if (!f.handles.trim()) e.handles = "Add at least one handle so we can see your page."; if (!f.level) e.level = "Choose the closest option."; }
+    if (s === 0) { if (!f.country.trim()) e.country = "Add the country you're based in."; if (!f.city.trim()) e.city = "Add your city. Brands look for creators near them."; if (!f.work_mode) e.work_mode = "Choose how you work."; if (!f.tier) e.tier = "Choose your creator category."; if (!f.handles.trim()) e.handles = "Add at least one handle so we can see your page."; if (!f.level) e.level = "Choose the closest option."; }
     if (s === 1) { if (!f.niches.length) e.niches = "Choose at least one niche."; if (!f.formats.length) e.formats = "Choose at least one format."; }
     if (s === 2) {
-      if (!f.showcase_video_id && !(f.useLink && isUrl(f.showcase_url))) e.showcase = f.useLink ? "Paste a full link, starting with https://" : "Upload your showcase video, or paste a link instead.";
+      if (!f.showcase_video_id && !(f.useLink && isUrl(f.showcase_url))) e.showcase = f.useLink ? "Paste a full link, starting with https://" : "Upload your entry video, or paste a link instead.";
       const links = f.work_links.filter((w) => w.url.trim()); if (links.some((w) => !isUrl(w.url))) e.work = "Each work link needs to start with https://";
     }
     if (s === 3) { if (!f.consent_feature) e.consent_feature = "Every Vetta creator's entry is posted. Tick this to enter."; if (!f.consent_terms) e.consent_terms = "Agree to the terms to enter."; }
@@ -153,8 +153,8 @@ function EntryForm() {
     if (step < 3) { setStep(step + 1); window.scrollTo(0, 0); return; }
     setBusy(true); setFail("");
     try {
-      const { useLink, work_mode, ...rest } = f;
-      await submitEntry({ ...rest, work_mode: work_mode || undefined, showcase_url: useLink ? f.showcase_url.trim() : null, showcase_video_id: useLink ? null : f.showcase_video_id,
+      const { useLink, work_mode, tier, ...rest } = f;
+      await submitEntry({ ...rest, work_mode: work_mode || undefined, tier: tier || undefined, showcase_url: useLink ? f.showcase_url.trim() : null, showcase_video_id: useLink ? null : f.showcase_video_id,
         work_links: f.work_links.filter((w) => w.url.trim()) });
       setDone(true); window.scrollTo(0, 0);
     } catch (x: any) { setFail(x.message); } finally { setBusy(false); }
@@ -185,6 +185,9 @@ function EntryForm() {
           <Field label="How you work" error={errors.work_mode}>
             <div className="radios radios--row">{WORK_MODES.map((w) => <label key={w.slug} className={`radio ${f.work_mode === w.slug ? "is-on" : ""}`}><input type="radio" name="ewm" checked={f.work_mode === w.slug} onChange={() => set("work_mode", w.slug)} /> {w.name}</label>)}</div>
           </Field>
+          <Field label="Creator category" error={errors.tier} hint="Based on your biggest account. Every category can get in: we vet creativity, not follower count.">
+            <div className="radios radios--row">{TIERS.map((t) => <label key={t.slug} className={`radio ${f.tier === t.slug ? "is-on" : ""}`}><input type="radio" name="etier" checked={f.tier === t.slug} onChange={() => set("tier", t.slug)} /> {t.name} <small className="muted">{t.range}</small></label>)}</div>
+          </Field>
           <Field label="Your handles" id="eh" error={errors.handles} hint="For example: TikTok @you, Instagram @you"><input id="eh" value={f.handles} onChange={(e) => set("handles", e.target.value)} /></Field>
           <Field label="How long have you been creating?" error={errors.level}>
             <div className="radios">{LEVELS.map((l) => <label key={l} className={`radio ${f.level === l ? "is-on" : ""}`}><input type="radio" name="lvl" checked={f.level === l} onChange={() => set("level", l)} /> {l}</label>)}</div>
@@ -197,10 +200,10 @@ function EntryForm() {
           <Field label="Your best result so far" id="ebr" optional hint="For example: 1.2M views on a skincare review."><input id="ebr" value={f.best_result} onChange={(e) => set("best_result", e.target.value)} /></Field>
         </>}
         {step === 2 && <>
-          <Field label="Showcase video" error={errors.showcase} hint="30 to 90 seconds. A day in the life, a skit, a spec ad: anything that shows how you think.">
+          <Field label="Your entry video" error={errors.showcase} hint="Your portfolio, as a video. 30 to 90 seconds, made for Vetta, as creative as you like: show your best work, your style and how you think. No PDFs, no decks.">
             {!f.useLink
               ? <VideoPicker kind="entry" caption={`${config.drop} entry`} niches={f.niches} onReady={(v) => set("showcase_video_id", v.id)} />
-              : <input type="url" placeholder="https://" value={f.showcase_url} onChange={(e) => set("showcase_url", e.target.value)} aria-label="Showcase video link" />}
+              : <input type="url" placeholder="https://" value={f.showcase_url} onChange={(e) => set("showcase_url", e.target.value)} aria-label="Entry video link" />}
             <button type="button" className="link-btn" onClick={() => set("useLink", !f.useLink)}>{f.useLink ? "Upload a file instead" : "Paste a TikTok, Instagram or YouTube link instead"}</button>
           </Field>
           <Field label="The idea behind it" id="esn" optional><textarea id="esn" rows={2} value={f.showcase_note} onChange={(e) => set("showcase_note", e.target.value)} /></Field>

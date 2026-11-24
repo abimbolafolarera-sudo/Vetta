@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { A, Avatar, Icon, Loading, Sheet, Verified, compact, share, toast } from "../components/ui";
 import { Player, Thumb } from "../components/Video";
-import { nicheName, workModeName } from "../config";
+import { nicheName, tierName, workModeName } from "../config";
 import { getProfile, placeOf, videosByOwner } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { Profile, Video } from "../lib/types";
@@ -62,6 +62,7 @@ export default function ProfilePage({ handle }: { handle?: string }) {
           )}
           <p className="prof__meta">
             {placeOf(p) && <span className="prof__place"><Icon name="pin" size={14} /> {placeOf(p)}</span>}
+            {p.tier && <span className="tier-pill">{tierName(p.tier)} creator</span>}
             {p.work_mode && <span>{workModeName(p.work_mode)}{p.open_to_travel ? ", open to travel" : ""}</span>}
             {p.vetted_drop && p.role === "creator" && <span>Vetted, {p.vetted_drop}</span>}
             {p.links.map((l) => <a key={l.url} href={l.url} target="_blank" rel="noreferrer"><Icon name="link" size={14} /> {l.label}</a>)}
@@ -107,6 +108,7 @@ export default function ProfilePage({ handle }: { handle?: string }) {
       {tab === "about" && (
         <dl className="facts">
           {placeOf(p) && <div><dt>Based in</dt><dd>{placeOf(p)}</dd></div>}
+          {p.tier && <div><dt>Category</dt><dd>{tierName(p.tier)}</dd></div>}
           {p.work_mode && <div><dt>Works</dt><dd>{workModeName(p.work_mode)}{p.open_to_travel ? ", open to travel" : ""}</dd></div>}
           {p.niches.length > 0 && <div><dt>Niches</dt><dd>{p.niches.map((n) => <A key={n} page="explore" arg={n} className="chip chip--sm">{nicheName(n)}</A>)}</dd></div>}
           {p.formats.length > 0 && <div><dt>Formats</dt><dd>{p.formats.join(", ")}</dd></div>}

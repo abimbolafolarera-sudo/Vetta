@@ -31,6 +31,15 @@ export const WORK_MODES: { slug: "remote" | "onsite" | "hybrid"; name: string }[
 ];
 export const workModeName = (m?: string | null) => WORK_MODES.find((w) => w.slug === m)?.name ?? "";
 
+export const TIERS: { slug: "nano" | "micro" | "mid" | "macro" | "mega"; name: string; range: string }[] = [
+  { slug: "nano", name: "Nano", range: "1k to 10k followers" },
+  { slug: "micro", name: "Micro", range: "10k to 100k" },
+  { slug: "mid", name: "Mid-tier", range: "100k to 500k" },
+  { slug: "macro", name: "Macro", range: "500k to 1M" },
+  { slug: "mega", name: "Mega", range: "1M+" },
+];
+export const tierName = (t?: string | null) => TIERS.find((x) => x.slug === t)?.name ?? "";
+
 export const TASK_TYPES: { slug: string; name: string; blurb: string }[] = [
   { slug: "ugc", name: "UGC video", blurb: "Make original videos the brand can post or run as ads" },
   { slug: "clip", name: "Clip", blurb: "Cut a brand's video into short clips with your own edit and hook" },

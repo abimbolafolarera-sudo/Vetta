@@ -59,15 +59,15 @@ export function BriefPage({ arg }: { arg?: string }) {
 }
 
 const DIFFERENT: [string, string][] = [
-  ["Vetted means bankable.", "Every Vetta creator is qualified, trusted and creative enough to deliver the brand's goal. Nano or massive, they get in on creativity and reliability, not follower count."],
+  ["Vetted means bankable.", "Every Vetta creator is qualified, trusted and creative enough to deliver the brand's goal. Nano, micro, mid-tier, macro or mega, every creator gets in on creativity and reliability, not follower count."],
   ["Trained, not just listed.", "Vetta creators learn how to read a brief, build a hook, handle usage rights and read their own results. They show up like professionals because we train them to."],
   ["Results on every profile.", "You see real work and real numbers: briefs delivered, on-time rate, brand ratings and hook rate. Not just followers."],
-  ["Briefs tailored, not broadcast.", "Send your campaign brief to Vetta. We shape it and match it to the creators who can make it convert. We don't blast it to everyone or copy it from another job board."],
+  ["Briefs tailored, not broadcast.", "Send your campaign brief to Vetta. We shape it and match it to the creators who can make it convert. We don't blast it to everyone."],
   ["Social first, global from day one.", "Explore creators in a feed that looks like the one your audience lives on, and stack your favourites into a shortlist. We work with brands and creators across Africa and beyond."],
 ];
 
 const STEPS: [string, string][] = [
-  ["Enter a Drop", "Creators apply in Drops, with one creative video made for Vetta and their best work for brands."],
+  ["Enter a Drop", "Creators apply in Drops with one entry video: their portfolio, made as a video, as creatively as they can. No PDFs, no decks. If they make it, their entry is posted on Vetta."],
   ["Reviewed on three things", "Craft: can they shoot, edit and hook in seconds. Creativity: an idea we haven't seen before. Proof: results, reliability and brands they've delivered for."],
   ["Trained before the first brief", "Selected creators go through Vetta training on briefs, hooks, usage rights and results."],
   ["Stay vetted by delivering", "Every brief adds to a creator's scorecard. Missed deadlines and off-brief work cost them the badge."],

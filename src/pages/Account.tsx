@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { A, Avatar, Chips, Field, Icon, Loading, Sheet, Verified, formatDate, timeAgo, toast } from "../components/ui";
-import { EARN, FORMATS, NICHES, TASK_TYPES, WORK_MODES, config, nicheName } from "../config";
+import { EARN, FORMATS, NICHES, TASK_TYPES, TIERS, WORK_MODES, config, nicheName } from "../config";
 import {
   changePassword, deleteShortlist, getProfilesByIds, myBriefs, myEntry, mySubmissions, myShortlists, myTasks, signOut, submissionsForMyCampaigns, updateMyProfile, uploadAvatar,
 } from "../lib/api";
@@ -113,7 +113,29 @@ export function Settings() {
   const [pw, setPw] = useState(""); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
   useEffect(() => { if (user) setF({ ...user, links: user.links.length ? user.links : [{ label: "", url: "" }], metrics: user.metrics.length ? user.metrics : [{ label: "", value: "" }] }); }, [user?.id]);
   if (loading) return <main id="main" className="page"><Loading /></main>;
-  if (!user || !f) return <Gate text="Log in to change your settings." />;
+  const appearance = (
+    <section className="card">
+      <h2 className="h3">Appearance</h2>
+      <div className="seg">
+        {(["dark", "light", "system"] as Theme[]).map((t) => (
+          <button key={t} className={theme === t ? "is-on" : ""} onClick={() => { setTheme(t); setT(t); applyTheme(t); }}>
+            <Icon name={t === "dark" ? "moon" : t === "light" ? "sun" : "settings"} size={16} /> {t === "system" ? "Device" : t[0].toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+  if (!user || !f) return (
+    <main id="main" className="page page--narrow settings">
+      <h1 className="h1">Settings</h1>
+      {appearance}
+      <section className="card">
+        <h2 className="h3">Your profile and account</h2>
+        <p className="muted">Log in to edit your profile, photo, rates and password.</p>
+        <div className="row-btns"><A page="login" className="btn btn--brand">Log in</A><A page="signup" className="btn btn--soft">Join Vetta</A></div>
+      </section>
+    </main>
+  );
   const set = (k: keyof Profile, v: any) => setF((p) => ({ ...p!, [k]: v }));
 
   async function save() {
@@ -149,6 +171,9 @@ export function Settings() {
         {user.role === "creator" && <>
           <Field label="How you work" hint="Brands filter by this when they need someone in person.">
             <div className="radios radios--row">{WORK_MODES.map((w) => <label key={w.slug} className={`radio ${f.work_mode === w.slug ? "is-on" : ""}`}><input type="radio" name="wm" checked={f.work_mode === w.slug} onChange={() => set("work_mode", w.slug)} /> {w.name}</label>)}</div>
+          </Field>
+          <Field label="Creator category" hint="Based on your biggest account.">
+            <div className="radios radios--row">{TIERS.map((t) => <label key={t.slug} className={`radio ${f.tier === t.slug ? "is-on" : ""}`}><input type="radio" name="stier" checked={f.tier === t.slug} onChange={() => set("tier", t.slug)} /> {t.name} <small className="muted">{t.range}</small></label>)}</div>
           </Field>
           <label className="check"><input type="checkbox" checked={!!f.open_to_travel} onChange={(e) => set("open_to_travel", e.target.checked)} /><span>Open to travel for paid gigs</span></label>
           <Field label="Your rate per video, in US dollars" hint="Brands see this range when you match their brief. Your scorecard (briefs delivered, on-time rate, ratings) is filled in by Vetta from real work.">
@@ -188,16 +213,7 @@ export function Settings() {
         <div className="form-nav"><button className="btn btn--brand" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save profile"}</button><button className="btn btn--soft" onClick={() => go("u", user.handle)}>View profile</button></div>
       </section>
 
-      <section className="card">
-        <h2 className="h3">Appearance</h2>
-        <div className="seg">
-          {(["dark", "light", "system"] as Theme[]).map((t) => (
-            <button key={t} className={theme === t ? "is-on" : ""} onClick={() => { setTheme(t); setT(t); applyTheme(t); }}>
-              <Icon name={t === "dark" ? "moon" : t === "light" ? "sun" : "settings"} size={16} /> {t === "system" ? "Device" : t[0].toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-      </section>
+      {appearance}
 
       <section className="card">
         <h2 className="h3">Account</h2>

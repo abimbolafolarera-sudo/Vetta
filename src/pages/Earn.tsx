@@ -33,6 +33,7 @@ export function Earn() {
           ? <p className="lede">You're vetted, so every gig is open to you, including the ones marked <b>Vetted only</b>.</p>
           : <p className="lede"><b>You're not vetted yet, and you can still earn here.</b> Every gig marked <b>Open to all</b> is yours to take. Get vetted to unlock the rest.</p>)
           : <p className="lede">Not vetted yet? You can earn here. Vetted? You earn here too. Clips, UGC videos, reviews, on-site events: each gig shows the pay up front.</p>}
+        <p className="earn-quality"><b>Not drag and drop.</b> Every gig here is a real brand brief, reviewed by Vetta before it goes live. We don't copy jobs from other job boards, and we don't post click-farm tasks.</p>
         <p className="earn-path">Do great work here and we'll invite you to the next Drop. That's how many Vetta creators get in.</p>
         <div className="row-btns">
           {!user && <A page="signup" arg="creator" className="btn btn--brand">Create a creator account to start</A>}

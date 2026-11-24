@@ -322,7 +322,7 @@ textarea { resize: vertical; }
 .inline-form { display: flex; gap: 8px; margin-top: 14px; }
 .inline-form input { flex: 1; }
 .seg { display: inline-flex; flex-wrap: wrap; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 2px; }
-.seg button { border: 0; background: transparent; padding: 7px 12px; border-radius: 8px; font-weight: 650; font-size: .86rem; color: var(--text-2); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; text-transform: capitalize; }
+.seg button { border: 0; background: transparent; padding: 7px 12px; border-radius: 8px; font-weight: 650; font-size: .86rem; color: var(--text-2); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
 .seg button.is-on { background: var(--bg); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
 .seg--sm button { padding: 5px 10px; }
 .list { list-style: none; padding: 0; margin: 0; }
@@ -688,3 +688,8 @@ button.arow:hover { background: var(--surface); }
 .earn-head { border-top: 5px solid var(--accent); }
 .earn-open { font-size: .74rem; font-weight: 800; padding: 3px 9px; border-radius: 99px; background: var(--accent); color: var(--accent-ink); }
 .earn-path { margin-top: 10px; font-weight: 700; font-size: .95rem; }
+
+.earn-quality{margin:.4rem 0 0;max-width:62ch;color:var(--text-2)}
+.earn-quality b{color:var(--text)}
+.tier-pill{display:inline-flex;align-items:center;gap:.3rem;font-size:.78rem;font-weight:600;padding:.15rem .55rem;border-radius:999px;background:var(--brand-soft);color:var(--text)}
+.tier-select select{height:40px;border-radius:999px;padding:0 .9rem;border:1px solid var(--line-2);background:var(--bg-2);color:var(--text);font:inherit}

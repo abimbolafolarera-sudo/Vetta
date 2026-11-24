@@ -28,7 +28,7 @@ type Store = {
   settings: { notify_email: string; from_email: string; site_url: string; drop_applied: number; drop_accepted: number };
   session: string | null;
 };
-const KEY_STORE = "vetta-preview-v6";
+const KEY_STORE = "vetta-preview-v7";
 const mem: { s: Store | null; blobs: Record<string, string> } = { s: null, blobs: {} };
 function S(): Store {
   if (mem.s) return mem.s;
@@ -129,23 +129,24 @@ export async function getProfilesByIds(ids: string[]): Promise<Record<string, Pr
   rows.forEach((p) => (out[p.id] = p)); return out;
 }
 
-export async function listCreators(opts: { niche?: string; q?: string; place?: string; mode?: string } = {}): Promise<Profile[]> {
+export async function listCreators(opts: { niche?: string; q?: string; place?: string; mode?: string; tier?: string } = {}): Promise<Profile[]> {
   const q = (opts.q ?? "").trim().toLowerCase(); const place = (opts.place ?? "").trim().toLowerCase();
   const modeOk = (m?: string | null) => !opts.mode || (opts.mode === "remote" ? true : m === opts.mode || m === "hybrid");
   if (DEMO) {
     return S().profiles.filter(isPublicCreator).filter((p) => (!opts.niche || p.niches.includes(opts.niche)) &&
       (!q || (p.display_name + " " + p.handle + " " + p.bio).toLowerCase().includes(q)) &&
-      (!place || placeOf(p).toLowerCase().includes(place)) && modeOk(p.work_mode)).map((p) => strip(p));
+      (!place || placeOf(p).toLowerCase().includes(place)) && modeOk(p.work_mode) && (!opts.tier || p.tier === opts.tier)).map((p) => strip(p));
   }
   let r = sb!.from("profiles").select("*").eq("role", "creator").eq("vetted", true).eq("status", "active").order("created_at");
   if (opts.niche) r = r.contains("niches", [opts.niche]);
   if (q) r = r.or(`display_name.ilike.%${q}%,handle.ilike.%${q}%,bio.ilike.%${q}%`);
   if (place) r = r.or(`city.ilike.%${place}%,region.ilike.%${place}%,country.ilike.%${place}%`);
   if (opts.mode && opts.mode !== "remote") r = r.in("work_mode", [opts.mode, "hybrid"]);
+  if (opts.tier) r = r.eq("tier", opts.tier);
   return must(await r) as Profile[];
 }
 
-const EDITABLE = ["display_name", "handle", "avatar_url", "bio", "location", "city", "region", "country", "work_mode", "open_to_travel", "links", "niches", "formats", "metrics", "company", "website", "job_title", "rate_from", "rate_to"] as const;
+const EDITABLE = ["display_name", "handle", "avatar_url", "bio", "location", "city", "region", "country", "work_mode", "tier", "open_to_travel", "links", "niches", "formats", "metrics", "company", "website", "job_title", "rate_from", "rate_to"] as const;
 export const placeOf = (p: Pick<Profile, "city" | "region" | "country" | "location">) => [p.city, p.region, p.country].filter(Boolean).join(", ") || p.location || "";
 export async function updateMyProfile(patch: Partial<Profile>) {
   const clean: any = {}; for (const k of EDITABLE) if (k in patch) clean[k] = (patch as any)[k];
@@ -333,7 +334,7 @@ export async function submitBrief(b: Omit<Brief, "id" | "created_at" | "status" 
 /* ---------- instant matching: free, no account needed ---------- */
 const BUDGET_CAP: Record<string, number> = { "Under $500": 500, "$500 to $2,000": 2000, "$2,000 to $10,000": 10000 };
 const cardOf = (p: Profile): CreatorCard => ({ id: p.id, handle: p.handle, display_name: p.display_name, avatar_url: p.avatar_url, niches: p.niches, formats: p.formats,
-  city: p.city, country: p.country, work_mode: p.work_mode, rate_from: p.rate_from, rate_to: p.rate_to, jobs_done: p.jobs_done ?? 0,
+  city: p.city, country: p.country, work_mode: p.work_mode, tier: p.tier, rate_from: p.rate_from, rate_to: p.rate_to, jobs_done: p.jobs_done ?? 0,
   on_time_pct: p.on_time_pct, brand_rating: p.brand_rating, hook_rate: p.hook_rate, vetted: p.vetted });
 function demoMatch(b: { niches: string[]; city?: string | null; work_mode?: string | null; budget: string; creator_id?: string | null }): CreatorCard[] {
   const cap = BUDGET_CAP[b.budget];
@@ -520,7 +521,7 @@ export const admin = {
       const s = S(); const p = s.profiles.find((x) => x.id === e.user_id); if (!p) return;
       p.vetted = true; p.vetted_drop = e.drop; if (!p.niches.length) p.niches = e.niches; if (!p.formats.length) p.formats = e.formats;
       if (!p.city) { p.city = e.city ?? null; p.region = e.region ?? null; p.country = e.country; p.location = placeOf(p as Profile); }
-      if (!p.work_mode && e.work_mode) p.work_mode = e.work_mode;
+      if (!p.work_mode && e.work_mode) p.work_mode = e.work_mode; if (!p.tier && e.tier) p.tier = e.tier;
       const v = s.videos.find((x) => x.id === e.showcase_video_id); if (v) { v.kind = "post"; v.status = "ready"; }
       const en = s.entries.find((x) => x.id === e.id); if (en) en.status = "selected"; save(); return;
     }

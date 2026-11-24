@@ -61,6 +61,7 @@ export function Shell({ page, children, immersive }: { page: string; children: R
               <Avatar p={user} size={32} /><span><b>{user.display_name}</b><small>@{user.handle}</small></span><Icon name="settings" size={18} />
             </A>
           )}
+          {!user && <A page="settings" className={`side__link ${on("settings") ? "is-on" : ""}`}><Icon name="settings" /><span>Settings</span></A>}
           <div className="side__links"><A page="terms">Terms and privacy</A></div>
         </div>
       </aside>
@@ -91,7 +92,7 @@ export function Shell({ page, children, immersive }: { page: string; children: R
       <Sheet open={menu} onClose={() => setMenu(false)} title="Menu">
         <ul className="menu">
           {nav.map((n) => <li key={n.page}><A page={n.page} className={on(n.page) ? "is-on" : ""}><Icon name={n.icon} /> {n.label}</A></li>)}
-          {user && <li><A page="settings"><Icon name="settings" /> Settings</A></li>}
+          <li><A page="settings"><Icon name="settings" /> Settings</A></li>
           {!user && <><li><A page="signup" arg="creator"><Icon name="star" /> Sign up as a creator</A></li><li><A page="signup" arg="brand"><Icon name="brands" /> Sign up as a brand</A></li><li><A page="login"><Icon name="user" /> Log in</A></li></>}
           <li><A page="terms"><Icon name="flag" /> Terms and privacy</A></li>
         </ul>
