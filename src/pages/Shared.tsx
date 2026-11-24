@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { A, Avatar, Chips, Field, Icon, Sheet, Verified, toast } from "../components/ui";
+import { A, Avatar, Chips, Field, Icon, Loading, Sheet, Verified, toast } from "../components/ui";
 import { NICHES, nicheName, tierName } from "../config";
-import { confirmBrief, createShortlist, myShortlists, publicSettings, report, requestUpgrade, setInShortlist, startBrief, stopBriefEmails } from "../lib/api";
+import { DEMO, PAYSTACK_KEY, type PublicSettings, confirmBrief, createShortlist, getBrief, myShortlists, priceText, publicSettings, report, requestUpgrade, runUpgrade, setInShortlist, startBrief, stopBriefEmails } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { BriefDraft, CreatorCard, Profile, Shortlist } from "../lib/types";
+import type { BriefDraft, CreatorCard, Profile, Shortlist, UpgradeReport } from "../lib/types";
 
 export function SaveSheet({ creator, onClose }: { creator: Profile | null; onClose: () => void }) {
   const [lists, setLists] = useState<Shortlist[] | null>(null);
@@ -95,23 +95,100 @@ function MatchCard({ c, picked, onPick }: { c: CreatorCard; picked: boolean; onP
   );
 }
 
-/** Paid add-on: Vetta researches the category and sharpens the brief. */
-function UpgradeOffer({ draft }: { draft: BriefDraft }) {
-  const [s, setS] = useState<{ upgrade_price?: string; upgrade_link?: string } | null>(null);
-  const [asked, setAsked] = useState(false); const [busy, setBusy] = useState(false);
+/** Paid add-on: Vetta researches the category and sharpens the brief, in minutes. */
+function loadPaystack(): Promise<any> {
+  const w = window as any;
+  if (w.PaystackPop) return Promise.resolve(w.PaystackPop);
+  return new Promise((ok, fail) => {
+    const sc = document.createElement("script"); sc.src = "https://js.paystack.co/v2/inline.js";
+    sc.onload = () => ok(w.PaystackPop); sc.onerror = () => fail(new Error("The payment window didn't load. Check your connection and try again."));
+    document.head.appendChild(sc);
+  });
+}
+
+function UpgradeOffer({ draft, email }: { draft: BriefDraft; email: string }) {
+  const [s, setS] = useState<PublicSettings | null>(null);
+  const [phase, setPhase] = useState<"offer" | "running" | "ready" | "requested" | "error">(
+    draft.upgrade_status === "ready" && draft.upgrade_report ? "ready" : draft.upgrade_status === "running" || draft.upgrade_status === "paid" ? "running" : draft.upgrade_status === "requested" ? "requested" : "offer");
+  const [report, setReport] = useState<UpgradeReport | null>(draft.upgrade_report ?? null);
+  const [msg, setMsg] = useState(""); const [busy, setBusy] = useState(false);
   useEffect(() => { publicSettings().then(setS).catch(() => setS({})); }, []);
-  if (!s?.upgrade_price) return null;
+  // If the research is already running (say, after a refresh), check back until it's ready.
+  useEffect(() => {
+    if (phase !== "running" || DEMO) return;
+    const t = setInterval(async () => {
+      try { const d = await getBrief(draft.id, draft.token); if (d.upgrade_status === "ready" && d.upgrade_report) { setReport(d.upgrade_report); setPhase("ready"); } else if (d.upgrade_status === "failed") { setPhase("error"); setMsg("Your payment is safe. Our team will finish your upgrade and email it within 24 hours."); } } catch { /* keep waiting */ }
+    }, 8000);
+    return () => clearInterval(t);
+  }, [phase]);
+
+  if (phase === "ready" && report) return <UpgradeReportView r={report} />;
+  if (phase === "running") return (
+    <div className="upgrade card" aria-live="polite"><Loading /><h4 className="h3">Researching your category…</h4>
+      <p className="muted">We're checking what's working, where competitors fall short, and rewriting your brief. This takes about two minutes. You can stay here, and we'll email it to you too.</p></div>
+  );
+  const price = priceText(s?.upgrade_amount, s?.upgrade_currency) || s?.upgrade_price || "";
+  if (!s || !price) return null;
+  const instant = DEMO || (!!PAYSTACK_KEY && !!s.upgrade_amount);
+
+  async function run(reference: string) {
+    setPhase("running");
+    try { const r = await runUpgrade(draft.id, draft.token, reference); if (r.status === "ready" && r.report) { setReport(r.report); setPhase("ready"); } }
+    catch (x: any) { setPhase("error"); setMsg(x.message); }
+  }
+  async function buy() {
+    setBusy(true); setMsg("");
+    try {
+      if (DEMO) { await run("demo-" + Date.now()); return; }
+      if (!instant) { await requestUpgrade(draft.id, draft.token); setPhase("requested"); if (s!.upgrade_link) window.open(s!.upgrade_link, "_blank", "noopener"); return; }
+      const Pop = await loadPaystack();
+      new Pop().newTransaction({
+        key: PAYSTACK_KEY, email, amount: Math.round(Number(s!.upgrade_amount) * 100), currency: s!.upgrade_currency || "NGN",
+        reference: `vetta_${draft.id.slice(0, 8)}_${Date.now()}`, metadata: { brief_id: draft.id, custom_fields: [{ display_name: "Brief", variable_name: "brief", value: draft.company ?? "" }] },
+        onSuccess: (t: any) => run(t.reference), onCancel: () => setMsg("Payment cancelled. Your matches are still here."),
+      });
+    } catch (x: any) { setMsg(x.message); } finally { setBusy(false); }
+  }
+
   return (
     <div className="upgrade card">
       <h4 className="h3">Want a sharper brief first?</h4>
-      <p className="muted">The Brief Upgrade: we research your category, show what's working, the gaps your competitors leave and how to own them, then rewrite your brief and hand-pick your shortlist. Delivered within 48 hours.</p>
-      {asked
-        ? <p className="small"><b>Requested.</b> {s.upgrade_link ? "If the payment page didn't open, " : ""}{s.upgrade_link ? <a href={s.upgrade_link} target="_blank" rel="noreferrer">pay here</a> : "We'll email you to arrange payment"}{s.upgrade_link ? ". We start as soon as it's paid." : " and start as soon as it's paid."}</p>
-        : <button className="btn btn--soft" disabled={busy} onClick={async () => {
-            setBusy(true);
-            try { await requestUpgrade(draft.id, draft.token); setAsked(true); if (s.upgrade_link) window.open(s.upgrade_link, "_blank", "noopener"); } catch (x: any) { toast(x.message); } finally { setBusy(false); }
-          }}>Get the Brief Upgrade, {s.upgrade_price}</button>}
+      <p className="muted">The Brief Upgrade: we research your category, show what's working, the gaps your competitors leave and how to own them, then rewrite your brief and hand-pick your shortlist. {instant ? "Ready in about two minutes." : "Delivered within 48 hours."}</p>
+      {phase === "requested"
+        ? <p className="small"><b>Requested.</b> {s.upgrade_link ? <>If the payment page didn't open, <a href={s.upgrade_link} target="_blank" rel="noreferrer">pay here</a>. We start as soon as it's paid.</> : "We'll email you to arrange payment and start as soon as it's paid."}</p>
+        : <button className="btn btn--brand" disabled={busy} onClick={buy}>{busy ? "Opening payment…" : `Get the Brief Upgrade, ${price}`}</button>}
+      {msg && <p className={phase === "error" ? "form-fail" : "small muted"}>{msg}</p>}
+      {instant && phase === "offer" && <p className="small muted">Secure card, bank transfer or USSD payment by Paystack.</p>}
     </div>
+  );
+}
+
+function UpgradeReportView({ r }: { r: UpgradeReport }) {
+  const list = (t: string, items?: string[]) => items?.length ? <section className="rep__sec"><h5 className="rep__h">{t}</h5><ul>{items.map((x, i) => <li key={i}>{x}</li>)}</ul></section> : null;
+  const b = r.brief ?? ({} as UpgradeReport["brief"]);
+  return (
+    <article className="upgrade rep card">
+      <p className="kicker">Your Brief Upgrade</p>
+      <h4 className="h3 rep__headline">{r.headline}</h4>
+      {list("Your market right now", r.market)}
+      {list("What's working", r.working)}
+      {list("Gaps you can own", r.gaps)}
+      <section className="rep__sec rep__brief">
+        <h5 className="rep__h">Your sharper brief</h5>
+        <dl className="facts">
+          {b.objective && <div><dt>Objective</dt><dd>{b.objective}</dd></div>}
+          {b.audience && <div><dt>Audience</dt><dd>{b.audience}</dd></div>}
+          {b.key_message && <div><dt>Key message</dt><dd>{b.key_message}</dd></div>}
+          {b.usage_rights && <div><dt>Usage rights</dt><dd>{b.usage_rights}</dd></div>}
+        </dl>
+        {list("Proof points", b.proof_points)}{list("Hooks to test", b.hooks)}{list("Deliverables", b.deliverables)}
+        {list("Do", b.dos)}{list("Don't", b.donts)}{list("How we'll measure it", b.kpis)}
+      </section>
+      {r.shortlist?.length > 0 && <section className="rep__sec"><h5 className="rep__h">Your shortlist</h5><ul>{r.shortlist.map((c) => <li key={c.id}>{c.handle ? <A page="u" arg={c.handle}>{c.display_name ?? "@" + c.handle}</A> : c.display_name}: {c.why}</li>)}</ul></section>}
+      {r.next_step && <p className="rep__next"><b>Next:</b> {r.next_step}</p>}
+      {r.sources?.length > 0 && <details className="rep__src"><summary>Sources</summary><ul>{r.sources.map((x, i) => <li key={i}><a href={x.url} target="_blank" rel="noreferrer">{x.title || x.url}</a></li>)}</ul></details>}
+      <div className="row-btns"><button className="btn btn--soft btn--sm" onClick={() => window.print()}>Save as PDF</button></div>
+    </article>
   );
 }
 
@@ -142,7 +219,7 @@ export function MatchView({ draft, email, resumed, onBooked }: { draft: BriefDra
           try { await confirmBrief(draft.id, draft.token, picked); setBooked(true); onBooked?.(); } catch (x: any) { toast(x.message); } finally { setBusy(false); }
         }}>{busy ? "Booking…" : "Book through Vetta"}</button>
         <p className="small muted">You pay the creator's rate plus a Vetta fee, shown before you pay. If a video misses the brief, we reshoot it or replace the creator.</p>
-        <UpgradeOffer draft={draft} />
+        <UpgradeOffer draft={draft} email={email} />
         {resumed && !stopped && <button className="link-btn small" onClick={async () => { await stopBriefEmails(draft.id, draft.token); setStopped(true); toast("We won't email you about this brief again"); }}>Stop these emails</button>}
       </div>
     </div>

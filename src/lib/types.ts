@@ -111,6 +111,8 @@ export type Brief = {
   picked?: string[];
   followup_stage?: number;
   upgrade_requested?: boolean;
+  upgrade_status?: UpgradeStatus;
+  upgrade_report?: UpgradeReport | null;
   unsubscribed?: boolean;
   token?: string;
 };
@@ -118,7 +120,13 @@ export type Brief = {
 // What a brand sees for a matched creator.
 export type CreatorCard = Pick<Profile, "id" | "handle" | "display_name" | "avatar_url" | "niches" | "formats" | "city" | "country" | "work_mode" | "tier"
   | "rate_from" | "rate_to" | "jobs_done" | "on_time_pct" | "brand_rating" | "hook_rate" | "vetted">;
-export type BriefDraft = { id: string; token: string; matches: CreatorCard[]; company?: string; contact_name?: string; email?: string; status?: Brief["status"]; unsubscribed?: boolean };
+export type BriefDraft = { id: string; token: string; matches: CreatorCard[]; company?: string; contact_name?: string; email?: string; status?: Brief["status"]; unsubscribed?: boolean; upgrade_status?: UpgradeStatus; upgrade_report?: UpgradeReport | null };
+export type UpgradeStatus = "none" | "requested" | "paid" | "running" | "ready" | "failed";
+export type UpgradeReport = {
+  headline: string; market: string[]; working: string[]; gaps: string[];
+  brief: { objective: string; audience: string; key_message: string; proof_points: string[]; hooks: string[]; deliverables: string[]; dos: string[]; donts: string[]; kpis: string[]; usage_rights: string };
+  shortlist: { id: string; why: string; handle?: string; display_name?: string }[]; next_step: string; sources: { title: string; url: string }[]; generated_at?: string;
+};
 
 export type Task = {
   id: string;
@@ -166,7 +174,7 @@ export type Report = {
   target_type: "profile" | "video" | "message"; target_id: string; reason: string; status: "open" | "resolved";
 };
 
-export type Settings = { notify_email: string; resend_key_set: boolean; from_email: string; site_url: string; drop_applied: number; drop_accepted: number; upgrade_price: string; upgrade_link: string };
+export type Settings = { notify_email: string; resend_key_set: boolean; from_email: string; site_url: string; drop_applied: number; drop_accepted: number; upgrade_price: string; upgrade_link: string; upgrade_amount: number; upgrade_currency: string };
 
 export type Resource = {
   id: string; created_at: string;

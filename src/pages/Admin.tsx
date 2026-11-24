@@ -237,7 +237,7 @@ function Briefs() {
       {!list.length && <p className="muted">{show === "draft" ? "No unbooked matches." : "No briefs yet."}</p>}
       <ul className="arows">{list.map((b) => (
         <li key={b.id} className="brief-row card">
-          <div className="sec-row"><b>{b.company}</b>{b.upgrade_requested && <span className="status status--new">Brief Upgrade requested</span>}<span className="muted">{b.contact_name} | <a href={`mailto:${b.email}`}>{b.email}</a> | {timeAgo(b.created_at)}</span>
+          <div className="sec-row"><b>{b.company}</b>{b.upgrade_status === "ready" ? <a className="status status--live" href={`/brief/${b.id}.${b.token}`} target="_blank" rel="noreferrer">Upgrade delivered</a> : b.upgrade_status === "failed" ? <span className="status status--rejected">Upgrade failed: finish by hand</span> : b.upgrade_requested ? <span className="status status--new">Brief Upgrade requested</span> : null}<span className="muted">{b.contact_name} | <a href={`mailto:${b.email}`}>{b.email}</a> | {timeAgo(b.created_at)}</span>
             <select aria-label="Status" value={b.status} onChange={async (e) => { await admin.updateBrief(b.id, { status: e.target.value as any }); load(); }}>{b.status === "draft" && <option value="draft">Not booked</option>}<option value="new">New</option><option value="in_talks">In talks</option><option value="won">Won</option><option value="closed">Closed</option></select></div>
           <p className="muted">{b.creator_id ? "For one creator" : b.niches.map(nicheName).join(", ")} | {b.budget} | {b.timeline}{b.city ? ` | ${b.city}` : ""}{b.brand_id ? " | has account" : ""}{b.status === "draft" ? ` | follow-ups sent: ${b.followup_stage ?? 0} of 3${b.unsubscribed ? ", stopped" : ""}` : ""}</p>
           {b.whatsapp && <p className="small">{b.whatsapp_optin ? <a href={`https://wa.me/${b.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer">WhatsApp {b.whatsapp}</a> : <span className="muted">WhatsApp {b.whatsapp} (didn't opt in to messages)</span>}{b.picked?.length ? ` | picked ${b.picked.length} of ${b.matched?.length ?? 0} matches` : ""}</p>}
@@ -383,14 +383,17 @@ function SettingsTab() {
       }}>Save Drop numbers</button></div>
 
       <h2 className="h3" style={{ marginTop: 28 }}>Brief Upgrade</h2>
-      <p className="muted">A paid add-on offered under a brand's matches: market research on their category, the gaps competitors leave, what's working, and a sharper brief with a hand-picked shortlist. Leave the price empty to hide the offer.</p>
+      <p className="muted">A paid add-on under a brand's matches: research on their category, what's working, the gaps competitors leave, a sharper brief and a hand-picked shortlist. With Paystack and the research engine switched on, brands pay by card and get it in about two minutes. Set the price to 0 to hide the offer.</p>
       <div className="row2">
-        <Field label="Price shown to brands" id="aup" hint="For example: $99 or ₦75,000"><input id="aup" value={s.upgrade_price} onChange={(e) => setS({ ...s, upgrade_price: e.target.value })} /></Field>
-        <Field label="Payment link" id="aul" optional hint="A Paystack payment link. Without one, we email the brand to arrange payment."><input id="aul" type="url" value={s.upgrade_link} onChange={(e) => setS({ ...s, upgrade_link: e.target.value })} placeholder="https://paystack.com/pay/..." /></Field>
+        <Field label="Currency"><select value={s.upgrade_currency} onChange={(e) => setS({ ...s, upgrade_currency: e.target.value })}>
+          <option value="NGN">Naira (NGN)</option><option value="USD">US dollars (USD)</option><option value="GHS">Cedis (GHS)</option><option value="KES">Shillings (KES)</option><option value="ZAR">Rand (ZAR)</option>
+        </select></Field>
+        <Field label="Price" id="aua" hint="Brands see it on the button, e.g. 75000 shows as ₦75,000"><input id="aua" inputMode="decimal" value={s.upgrade_amount || ""} onChange={(e) => setS({ ...s, upgrade_amount: Number(e.target.value.replace(/[^0-9.]/g, "")) || 0 })} /></Field>
       </div>
+      <Field label="Backup payment link" id="aul" optional hint="Only used if instant payment isn't switched on: a Paystack payment link, and we deliver by hand."><input id="aul" type="url" value={s.upgrade_link} onChange={(e) => setS({ ...s, upgrade_link: e.target.value })} placeholder="https://paystack.com/pay/..." /></Field>
       <div className="form-nav"><button className="btn btn--soft" onClick={() => {
         if (s.upgrade_link && !/^https:\/\/\S+$/.test(s.upgrade_link.trim())) { toast("Use the full link, starting with https://"); return; }
-        save({ upgrade_price: s.upgrade_price.trim(), upgrade_link: s.upgrade_link.trim() }, "Brief Upgrade saved");
+        save({ upgrade_amount: s.upgrade_amount, upgrade_currency: s.upgrade_currency, upgrade_link: s.upgrade_link.trim() }, "Brief Upgrade saved");
       }}>Save Brief Upgrade</button></div>
 
       <h2 className="h3" style={{ marginTop: 28 }}>Email</h2>

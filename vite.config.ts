@@ -14,5 +14,6 @@ export default defineConfig({
   define: e.VITE_DEMO ? {} : {
     "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(supabaseUrl),
     "import.meta.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(supabaseKey),
+    "import.meta.env.VITE_PAYSTACK_PUBLIC_KEY": JSON.stringify(e.VITE_PAYSTACK_PUBLIC_KEY || e.PAYSTACK_PUBLIC_KEY || ""),
   },
 });

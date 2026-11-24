@@ -695,3 +695,10 @@ button.arow:hover { background: var(--surface); }
 .tier-select select{height:40px;border-radius:999px;padding:0 .9rem;border:1px solid var(--line-2);background:var(--bg-2);color:var(--text);font:inherit}
 .upgrade{margin-top:14px;padding:16px;border:1px solid var(--line-2);background:var(--brand-soft)}
 .upgrade .h3{margin:0 0 6px}
+.rep{background:var(--bg-2)}
+.rep__headline{font-size:1.15rem;line-height:1.35;margin:.2rem 0 .8rem}
+.rep__sec{margin:.9rem 0}.rep__sec ul{margin:.3rem 0 0;padding-left:1.1rem}.rep__sec li{margin:.25rem 0}
+.rep__h{font-size:.95rem;margin:0;color:var(--text)}
+.rep__brief{border-top:1px solid var(--line);padding-top:.8rem}
+.rep__next{margin-top:1rem}.rep__src{margin-top:.6rem;color:var(--text-3)}
+@media print{.side,.top,.tabbar,.backbar,.matches__head,.match-list,.matches__cta>.btn,.matches__cta>p{display:none!important}.rep{border:0}}

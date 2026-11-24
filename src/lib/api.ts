@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
-  AccountStatus, Brief, BriefDraft, Conversation, CreatorCard, Entry, Message, Profile, Report, Resource, Role, Settings, Shortlist, Task, TaskSubmission, Video,
+  AccountStatus, Brief, BriefDraft, Conversation, CreatorCard, Entry, Message, Profile, Report, Resource, Role, Settings, Shortlist, Task, TaskSubmission, UpgradeReport, UpgradeStatus, Video,
 } from "./types";
 import { DEMO_PASSWORD, SEED_PROFILES, SEED_RESOURCES, SEED_TASKS, SEED_VIDEOS } from "./demo";
 import { config } from "../config";
@@ -25,10 +25,10 @@ type Store = {
   videos: Video[]; entries: Entry[]; likes: { user_id: string; video_id: string }[];
   shortlists: Shortlist[]; briefs: Brief[]; tasks: Task[]; submissions: TaskSubmission[];
   conversations: Conversation[]; messages: Message[]; reports: Report[]; resources: Resource[];
-  settings: { notify_email: string; from_email: string; site_url: string; drop_applied: number; drop_accepted: number; upgrade_price: string; upgrade_link: string };
+  settings: { notify_email: string; from_email: string; site_url: string; drop_applied: number; drop_accepted: number; upgrade_price: string; upgrade_link: string; upgrade_amount: number; upgrade_currency: string };
   session: string | null;
 };
-const KEY_STORE = "vetta-preview-v7";
+const KEY_STORE = "vetta-preview-v8";
 const mem: { s: Store | null; blobs: Record<string, string> } = { s: null, blobs: {} };
 function S(): Store {
   if (mem.s) return mem.s;
@@ -37,7 +37,7 @@ function S(): Store {
   mem.s = s ?? {
     profiles: SEED_PROFILES.map((p) => ({ ...p, password: DEMO_PASSWORD })),
     videos: SEED_VIDEOS, entries: [], likes: [], shortlists: [], briefs: [], tasks: SEED_TASKS, submissions: [],
-    conversations: [], messages: [], reports: [], resources: SEED_RESOURCES, settings: { notify_email: "", from_email: "", site_url: "", drop_applied: 0, drop_accepted: 0, upgrade_price: "$99", upgrade_link: "" }, session: null,
+    conversations: [], messages: [], reports: [], resources: SEED_RESOURCES, settings: { notify_email: "", from_email: "", site_url: "", drop_applied: 0, drop_accepted: 0, upgrade_price: "", upgrade_link: "", upgrade_amount: 75000, upgrade_currency: "NGN" }, session: null,
   };
   return mem.s!;
 }
@@ -361,7 +361,7 @@ export async function getBrief(id: string, token: string): Promise<BriefDraft> {
   if (DEMO) {
     const b = S().briefs.find((x) => x.id === id && x.token === token); if (!b) throw new Error("This link has expired.");
     const matches = S().profiles.filter((p) => (b.matched ?? []).includes(p.id) && isPublicCreator(p)).map((p) => cardOf(strip(p)));
-    return { id, token, matches, company: b.company, contact_name: b.contact_name, email: b.email, status: b.status, unsubscribed: b.unsubscribed };
+    return { id, token, matches, company: b.company, contact_name: b.contact_name, email: b.email, status: b.status, unsubscribed: b.unsubscribed, upgrade_status: b.upgrade_status, upgrade_report: b.upgrade_report };
   }
   const r = await sb!.rpc("get_brief", { p_id: id, p_token: token }); if (r.error) throw new Error(r.error.message);
   return r.data as BriefDraft;
@@ -371,6 +371,43 @@ export async function confirmBrief(id: string, token: string, picked: string[]) 
   if (DEMO) { const b = S().briefs.find((x) => x.id === id && x.token === token); if (b && b.status === "draft") { b.status = "new"; b.picked = picked; const m = me(); if (!b.brand_id && m?.role === "brand") b.brand_id = m.id; } save(); return; }
   const r = await sb!.rpc("confirm_brief", { p_id: id, p_token: token, p_picked: picked }); if (r.error) throw new Error(r.error.message);
 }
+/** Price as brands see it, e.g. ₦75,000 or $99. */
+export function priceText(amount?: number, currency?: string) {
+  if (!amount) return "";
+  const sym = currency === "USD" ? "$" : currency === "GHS" ? "GH₵" : currency === "KES" ? "KSh " : currency === "ZAR" ? "R" : "₦";
+  return sym + Number(amount).toLocaleString("en-US");
+}
+export const PAYSTACK_KEY: string = (import.meta.env.VITE_PAYSTACK_PUBLIC_KEY as string) || "";
+
+/** After payment: research and write the Brief Upgrade. Takes a minute or two. */
+export async function runUpgrade(id: string, token: string, reference: string): Promise<{ status: string; report?: UpgradeReport; error?: string }> {
+  if (DEMO) {
+    await new Promise((r) => setTimeout(r, 2500));
+    const b = S().briefs.find((x) => x.id === id && x.token === token); if (!b) throw new Error("This link has expired.");
+    const picks = S().profiles.filter((p) => (b.matched ?? []).includes(p.id)).slice(0, 3);
+    const report = demoReport(b.company, picks.map((p) => ({ id: p.id, handle: p.handle, display_name: p.display_name })));
+    b.upgrade_status = "ready"; b.upgrade_report = report; save(); return { status: "ready", report };
+  }
+  const r = await fetch("/api/upgrade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, token, reference }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok && r.status !== 202) throw new Error(j.error || "Something went wrong. Your payment is safe and we'll email your upgrade.");
+  return j;
+}
+function demoReport(company: string, picks: { id: string; handle: string; display_name: string }[]): UpgradeReport {
+  return {
+    headline: `${company}'s category is crowded with polished ads; the opening is honest, routine-led creator video that shows the product working in a real Lagos day.`,
+    market: ["Sample report: in the live version, this is researched on the web for your exact category.", "Leading brands post 4 to 7 short videos a week and run their best creator posts as ads.", "Most competitors lean on celebrity faces; few show the product in use."],
+    working: ["Hooks that open on the result, then rewind to the routine", "Get-ready-with-me formats under 30 seconds", "Price-and-value callouts in the first 3 seconds"],
+    gaps: ["Nobody owns humid-weather wear tests", "Few brands answer real customer questions on camera", "Very little content for first-time buyers"],
+    brief: { objective: "Drive first purchases from 18 to 30 year olds in Lagos and Abuja.", audience: "Students and young professionals who buy on TikTok and Instagram.", key_message: "It still looks fresh at 6pm.",
+      proof_points: ["Wear test across a full day", "Real customer reviews"], hooks: ["\u201cI wore this through Lagos traffic. Here's 6pm.\u201d", "Start on the finished look, then show the 3 steps", "\u201c₦X and it lasted longer than my expensive one\u201d"],
+      deliverables: ["3 vertical videos, 20 to 35 seconds", "Raw files for ads", "1 carousel of stills"], dos: ["Film in natural light", "Show the product within 2 seconds"], donts: ["No scripted voice-overs that sound like ads", "No competitor names"],
+      kpis: ["Hook rate above 30%", "Cost per first purchase", "Saves and shares"], usage_rights: "Paid ads use for 6 months on TikTok and Meta." },
+    shortlist: picks.map((p) => ({ ...p, why: "Strong hook rate and a routine-led style that fits this brief." })),
+    next_step: "Book through Vetta and we'll brief these creators with this exact plan.", sources: [], generated_at: new Date().toISOString(),
+  };
+}
+
 /** Brief Upgrade: the brand asks Vetta for research and a sharper brief. */
 export async function requestUpgrade(id: string, token: string) {
   if (DEMO) { const b = S().briefs.find((x) => x.id === id && x.token === token); if (b) b.upgrade_requested = true; save(); return; }
@@ -443,8 +480,9 @@ export async function mySubmissions(): Promise<TaskSubmission[]> {
 }
 
 /* ============================ messages: everyone talks to the Vetta team ============================ */
-export async function publicSettings(): Promise<{ drop_applied?: number; drop_accepted?: number; upgrade_price?: string; upgrade_link?: string }> {
-  if (DEMO) { const { drop_applied, drop_accepted, upgrade_price, upgrade_link } = S().settings; return { drop_applied, drop_accepted, upgrade_price, upgrade_link }; }
+export type PublicSettings = { drop_applied?: number; drop_accepted?: number; upgrade_price?: string; upgrade_link?: string; upgrade_amount?: number; upgrade_currency?: string };
+export async function publicSettings(): Promise<PublicSettings> {
+  if (DEMO) { const { drop_applied, drop_accepted, upgrade_price, upgrade_link, upgrade_amount, upgrade_currency } = S().settings; return { drop_applied, drop_accepted, upgrade_price, upgrade_link, upgrade_amount, upgrade_currency }; }
   const r = await sb!.rpc("public_settings");
   return (r.data as any) ?? {};
 }
@@ -604,11 +642,11 @@ export const admin = {
   },
   async settings(): Promise<Settings> {
     if (DEMO) return { ...S().settings, resend_key_set: false };
-    const r = must(await sb!.from("settings").select("notify_email, resend_key, from_email, site_url, drop_applied, drop_accepted, upgrade_price, upgrade_link").eq("id", 1).maybeSingle()) as any;
+    const r = must(await sb!.from("settings").select("notify_email, resend_key, from_email, site_url, drop_applied, drop_accepted, upgrade_price, upgrade_link, upgrade_amount, upgrade_currency").eq("id", 1).maybeSingle()) as any;
     return { notify_email: r?.notify_email ?? "", resend_key_set: !!r?.resend_key, from_email: r?.from_email ?? "", site_url: r?.site_url ?? "",
-      drop_applied: r?.drop_applied ?? 0, drop_accepted: r?.drop_accepted ?? 0, upgrade_price: r?.upgrade_price ?? "", upgrade_link: r?.upgrade_link ?? "" };
+      drop_applied: r?.drop_applied ?? 0, drop_accepted: r?.drop_accepted ?? 0, upgrade_price: r?.upgrade_price ?? "", upgrade_link: r?.upgrade_link ?? "", upgrade_amount: Number(r?.upgrade_amount ?? 0), upgrade_currency: r?.upgrade_currency ?? "NGN" };
   },
-  async saveSettings(p: { notify_email?: string; resend_key?: string; from_email?: string; site_url?: string; drop_applied?: number; drop_accepted?: number; upgrade_price?: string; upgrade_link?: string }) {
+  async saveSettings(p: { notify_email?: string; resend_key?: string; from_email?: string; site_url?: string; drop_applied?: number; drop_accepted?: number; upgrade_price?: string; upgrade_link?: string; upgrade_amount?: number; upgrade_currency?: string }) {
     if (DEMO) { const { resend_key: _k, ...rest } = p; Object.assign(S().settings, rest); save(); return; }
     must(await sb!.from("settings").update(p).eq("id", 1));
   },
