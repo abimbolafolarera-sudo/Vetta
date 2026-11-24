@@ -33,12 +33,12 @@ export const workModeName = (m?: string | null) => WORK_MODES.find((w) => w.slug
 
 export const TASK_TYPES: { slug: string; name: string; blurb: string }[] = [
   { slug: "ugc", name: "UGC video", blurb: "Make original videos the brand can post or run as ads" },
-  { slug: "clip", name: "Clip", blurb: "Cut a brand's video into your own short clips" },
+  { slug: "clip", name: "Clip", blurb: "Cut a brand's video into short clips with your own edit and hook" },
   { slug: "post", name: "Brand post", blurb: "Make and post an original video about the product" },
-  { slug: "review", name: "Review", blurb: "Try the product and post an honest review" },
+  { slug: "review", name: "Review", blurb: "Use the product and post an honest, disclosed review" },
   { slug: "mention", name: "Tagged mention", blurb: "Feature or tag the brand in your own content" },
   { slug: "stitch", name: "Stitch or duet", blurb: "React to or build on the brand's video" },
-  { slug: "repost", name: "Repost", blurb: "Share the brand's content with your own caption" },
+  { slug: "repost", name: "Repost", blurb: "Share the brand's licensed content with your own caption and #ad" },
   { slug: "event", name: "On-site or event", blurb: "Show up in person: launches, stores, events, shoots" },
 ];
 

@@ -7,7 +7,6 @@ import { useAuth } from "../lib/auth";
 import type { AccountStatus, Brief, Conversation, Entry, Message, Profile, Report, Resource, Settings, Task, TaskSubmission, Video } from "../lib/types";
 import { gigPlace } from "./Earn";
 import { ThreadView } from "./Inbox";
-import { PalettePicker } from "../components/PalettePicker";
 import { Gate } from "./Create";
 
 type Tab = "overview" | "entries" | "users" | "videos" | "briefs" | "tasks" | "learn" | "messages" | "reports" | "settings";
@@ -165,7 +164,8 @@ function Users() {
 function UserEditor({ p, onDone }: { p: Profile; onDone: () => void }) {
   const [f, setF] = useState(p);
   return (
-    <form onSubmit={async (e) => { e.preventDefault(); try { await admin.updateUser(p.id, { display_name: f.display_name, handle: f.handle, bio: f.bio, location: f.location, vetted: f.vetted, vetted_drop: f.vetted ? f.vetted_drop || "Drop 01" : null, plan: f.plan, avatar_url: f.avatar_url, niches: f.niches }); toast("Saved"); onDone(); } catch (x: any) { toast(x.message); } }}>
+    <form onSubmit={async (e) => { e.preventDefault(); try { await admin.updateUser(p.id, { display_name: f.display_name, handle: f.handle, bio: f.bio, location: f.location, vetted: f.vetted, vetted_drop: f.vetted ? f.vetted_drop || "Drop 01" : null, plan: f.plan, avatar_url: f.avatar_url, niches: f.niches,
+      ...(p.role === "creator" ? { rate_from: f.rate_from ?? null, rate_to: f.rate_to ?? null, jobs_done: f.jobs_done ?? 0, on_time_pct: f.on_time_pct ?? null, brand_rating: f.brand_rating ?? null, hook_rate: f.hook_rate ?? null, repeat_brands: f.repeat_brands ?? 0 } : {}) }); toast("Saved"); onDone(); } catch (x: any) { toast(x.message); } }}>
       <div className="row2">
         <Field label="Name" id="un"><input id="un" value={f.display_name} onChange={(e) => setF({ ...f, display_name: e.target.value })} /></Field>
         <Field label="Username" id="uh"><input id="uh" value={f.handle} onChange={(e) => setF({ ...f, handle: e.target.value.toLowerCase() })} /></Field>
@@ -173,6 +173,18 @@ function UserEditor({ p, onDone }: { p: Profile; onDone: () => void }) {
       <Field label="Bio" id="ub"><textarea id="ub" rows={3} value={f.bio} onChange={(e) => setF({ ...f, bio: e.target.value })} /></Field>
       <Field label="Location" id="ul"><input id="ul" value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} /></Field>
       {f.avatar_url && <button type="button" className="link-btn link-btn--danger" onClick={() => setF({ ...f, avatar_url: null })}>Remove profile photo</button>}
+      {p.role === "creator" && <>
+        <h3 className="h3" style={{ marginTop: 16 }}>Scorecard</h3>
+        <p className="muted small">Brands see these on the profile and when this creator matches a brief. Update them after each delivered brief.</p>
+        <div className="row3">
+          <Field label="Briefs delivered" id="sj"><input id="sj" type="number" min={0} value={f.jobs_done ?? ""} onChange={(e) => setF({ ...f, jobs_done: e.target.value === "" ? null : Number(e.target.value) } as any)} /></Field>
+          <Field label="On time, %" id="so"><input id="so" type="number" min={0} max={100} value={f.on_time_pct ?? ""} onChange={(e) => setF({ ...f, on_time_pct: e.target.value === "" ? null : Number(e.target.value) } as any)} /></Field>
+          <Field label="Brand rating, out of 5" id="sr"><input id="sr" type="number" min={0} max={5} step={0.1} value={f.brand_rating ?? ""} onChange={(e) => setF({ ...f, brand_rating: e.target.value === "" ? null : Number(e.target.value) } as any)} /></Field>
+          <Field label="Avg. hook rate, %" id="shr"><input id="shr" type="number" min={0} max={100} value={f.hook_rate ?? ""} onChange={(e) => setF({ ...f, hook_rate: e.target.value === "" ? null : Number(e.target.value) } as any)} /></Field>
+          <Field label="Rate from, USD" id="srf"><input id="srf" type="number" min={0} value={f.rate_from ?? ""} onChange={(e) => setF({ ...f, rate_from: e.target.value === "" ? null : Number(e.target.value) } as any)} /></Field>
+          <Field label="Rate to, USD" id="srt"><input id="srt" type="number" min={0} value={f.rate_to ?? ""} onChange={(e) => setF({ ...f, rate_to: e.target.value === "" ? null : Number(e.target.value) } as any)} /></Field>
+        </div>
+      </>}
       {p.role === "creator" && <label className="check"><input type="checkbox" checked={f.vetted} onChange={(e) => setF({ ...f, vetted: e.target.checked })} /><span>Vetted (profile public with badge)</span></label>}
       {p.role === "brand" && <Field label="Plan"><select value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value as any })}><option value="free">Free</option><option value="pro">Pro</option></select></Field>}
       <div className="form-nav"><button className="btn btn--brand">Save</button></div>
@@ -215,15 +227,20 @@ function Briefs() {
   const [rows, setRows] = useState<Brief[] | null>(null);
   const load = () => admin.briefs().then(setRows); useEffect(() => { load(); }, []);
   if (!rows) return <Loading />;
+  const [show, setShow] = useState<"sent" | "draft">("sent");
+  const drafts = rows.filter((b) => b.status === "draft"), sent = rows.filter((b) => b.status !== "draft");
+  const list = show === "draft" ? drafts : sent;
   return (
     <section>
-      <div className="sec-row"><span className="muted">{rows.length} briefs</span><Csv rows={rows} name="briefs" /></div>
-      {!rows.length && <p className="muted">No briefs yet.</p>}
-      <ul className="arows">{rows.map((b) => (
+      <div className="seg"><button className={show === "sent" ? "is-on" : ""} onClick={() => setShow("sent")}>Sent to Vetta {sent.length}</button><button className={show === "draft" ? "is-on" : ""} onClick={() => setShow("draft")}>Matched, not booked {drafts.length}</button></div>
+      <div className="sec-row"><span className="muted">{show === "draft" ? "These brands saw their matches but didn't book. They get follow-up emails at 15 minutes, 24 hours and 72 hours. Reach out yourself to the warm ones." : `${sent.length} briefs`}</span><Csv rows={list} name="briefs" /></div>
+      {!list.length && <p className="muted">{show === "draft" ? "No unbooked matches." : "No briefs yet."}</p>}
+      <ul className="arows">{list.map((b) => (
         <li key={b.id} className="brief-row card">
           <div className="sec-row"><b>{b.company}</b><span className="muted">{b.contact_name} | <a href={`mailto:${b.email}`}>{b.email}</a> | {timeAgo(b.created_at)}</span>
-            <select aria-label="Status" value={b.status} onChange={async (e) => { await admin.updateBrief(b.id, { status: e.target.value as any }); load(); }}><option value="new">New</option><option value="in_talks">In talks</option><option value="won">Won</option><option value="closed">Closed</option></select></div>
-          <p className="muted">{b.creator_id ? "For one creator" : b.niches.map(nicheName).join(", ")} | {b.budget} | {b.timeline}{b.brand_id ? " | has account" : ""}</p>
+            <select aria-label="Status" value={b.status} onChange={async (e) => { await admin.updateBrief(b.id, { status: e.target.value as any }); load(); }}>{b.status === "draft" && <option value="draft">Not booked</option>}<option value="new">New</option><option value="in_talks">In talks</option><option value="won">Won</option><option value="closed">Closed</option></select></div>
+          <p className="muted">{b.creator_id ? "For one creator" : b.niches.map(nicheName).join(", ")} | {b.budget} | {b.timeline}{b.city ? ` | ${b.city}` : ""}{b.brand_id ? " | has account" : ""}{b.status === "draft" ? ` | follow-ups sent: ${b.followup_stage ?? 0} of 3${b.unsubscribed ? ", stopped" : ""}` : ""}</p>
+          {b.whatsapp && <p className="small">{b.whatsapp_optin ? <a href={`https://wa.me/${b.whatsapp.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer">WhatsApp {b.whatsapp}</a> : <span className="muted">WhatsApp {b.whatsapp} (didn't opt in to messages)</span>}{b.picked?.length ? ` | picked ${b.picked.length} of ${b.matched?.length ?? 0} matches` : ""}</p>}
           <p>{b.brief}</p>
         </li>
       ))}</ul>
@@ -241,7 +258,7 @@ function TasksAdmin() {
   const task = (id: string) => tasks.find((t) => t.id === id);
   return (
     <section>
-      <div className="sec-row"><h2 className="sec-title">Campaigns and gigs</h2><button className="btn btn--brand btn--sm" onClick={() => setEdit({ brand: "", title: "", type: "clip", description: "", pay_model: "per_1k_views", rate: 1, budget: 0, min_views: 1000, platforms: ["TikTok", "Instagram"], rules: "Real posts and real views only. Disclose with #ad. Posts stay up 30 days.", status: "live", location_mode: "remote", vetted_only: false, niches: [] })}>New gig</button></div>
+      <div className="sec-row"><h2 className="sec-title">Campaigns and gigs</h2><button className="btn btn--brand btn--sm" onClick={() => setEdit({ brand: "", title: "", type: "clip", description: "", pay_model: "flat", rate: 20, budget: 0, min_views: 0, platforms: ["TikTok", "Instagram"], rules: "Real posts and real views only. Disclose with #ad. Posts stay up 30 days.", status: "live", location_mode: "remote", vetted_only: false, niches: [] })}>New gig</button></div>
       <ul className="arows">{tasks.map((t) => (
         <li key={t.id} className="arow arow--static">
           <span className="arow__main"><b>{t.title}</b><small>{t.brand} | {TASK_TYPES.find((x) => x.slug === t.type)?.name} | ${t.rate} {t.pay_model === "flat" ? "per gig" : "per 1k views"} | budget ${t.budget} | {gigPlace(t)} | {t.vetted_only ? "Vetted only" : "Open to all"}{t.created_by ? " | posted by brand" : ""}</small>{!!t.assets?.length && <small>{t.assets.map((a) => <a key={a.url} href={a.url} target="_blank" rel="noreferrer">{a.name} </a>)}</small>}</span>
@@ -277,8 +294,9 @@ function TaskEditor({ t, onDone }: { t: Partial<Task>; onDone: () => void }) {
         <Field label="Brand" id="ab"><input id="ab" value={f.brand ?? ""} onChange={(e) => set("brand", e.target.value)} /></Field>
         <Field label="Title" id="at"><input id="at" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} /></Field>
         <Field label="Type"><select value={f.type} onChange={(e) => set("type", e.target.value)}>{TASK_TYPES.map((x) => <option key={x.slug} value={x.slug}>{x.name}</option>)}</select></Field>
-        <Field label="Pays"><select value={f.pay_model} onChange={(e) => set("pay_model", e.target.value)}><option value="per_1k_views">Per 1,000 views</option><option value="flat">Flat per task</option></select></Field>
-        <Field label="Rate (USD)" id="ar"><input id="ar" inputMode="decimal" value={f.rate ?? ""} onChange={(e) => set("rate", Number(e.target.value) || 0)} /></Field>
+        <Field label="Pays"><select value={f.pay_model} onChange={(e) => set("pay_model", e.target.value)}><option value="flat">Flat fee per post</option><option value="hybrid">Base fee plus views bonus</option><option value="per_1k_views">Per 1,000 views</option></select></Field>
+        {f.pay_model === "hybrid" && <Field label="Base fee (USD)" id="abf"><input id="abf" inputMode="decimal" value={f.base_fee ?? ""} onChange={(e) => set("base_fee", Number(e.target.value) || 0)} /></Field>}
+        <Field label={f.pay_model === "flat" ? "Fee per post (USD)" : "Per 1,000 views (USD)"} id="ar"><input id="ar" inputMode="decimal" value={f.rate ?? ""} onChange={(e) => set("rate", Number(e.target.value) || 0)} /></Field>
         <Field label="Budget (USD)" id="abu"><input id="abu" inputMode="decimal" value={f.budget ?? ""} onChange={(e) => set("budget", Number(e.target.value) || 0)} /></Field>
       </div>
       <Field label="Description" id="ad"><textarea id="ad" rows={3} value={f.description ?? ""} onChange={(e) => set("description", e.target.value)} /></Field>
@@ -341,22 +359,37 @@ function Reports() {
 
 /* ---------- settings ---------- */
 function SettingsTab() {
-  const [s, setS] = useState<Settings | null>(null); const [email, setEmail] = useState(""); const [key, setKey] = useState("");
-  useEffect(() => { admin.settings().then((x) => { setS(x); setEmail(x.notify_email); }); }, []);
+  const [s, setS] = useState<Settings | null>(null); const [key, setKey] = useState("");
+  useEffect(() => { admin.settings().then(setS); }, []);
   if (!s) return <Loading />;
+  const save = async (p: Partial<Settings> & { resend_key?: string }, msg: string) => {
+    try { const { resend_key_set: _r, ...rest } = p as any; await admin.saveSettings(rest); setKey(""); toast(msg); setS(await admin.settings()); } catch (x: any) { toast(x.message); }
+  };
+  const okEmail = (e: string) => !e || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) || /<[^\s@]+@[^\s@]+\.[^\s@]+>$/.test(e);
   return (
     <section className="card settings-card">
-      <h2 className="h3">Site colour</h2>
-      <p className="muted">Tap a palette to see it across the whole app. It saves for every visitor.</p>
-      <PalettePicker value={s.palette} onPick={async (id) => { setS({ ...s, palette: id }); try { await admin.saveSettings({ palette: id }); toast("Colour saved for everyone"); } catch (x: any) { toast(x.message); } }} />
-      <h2 className="h3" style={{ marginTop: 24 }}>Email alerts</h2>
-      <p className="muted">New entries, briefs, campaigns to review, messages and reports are emailed here. Change it any time.</p>
-      <Field label="Send alerts to" id="ane"><input id="ane" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></Field>
-      <Field label="Resend API key" id="ark" optional hint={s.resend_key_set ? "A key is saved. Paste a new one only to replace it." : "From resend.com, API Keys. Needed for alerts to send."}><input id="ark" type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" /></Field>
-      <div className="form-nav"><button className="btn btn--brand" onClick={async () => {
-        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast("Add a valid email"); return; }
-        try { await admin.saveSettings({ notify_email: email.trim().toLowerCase(), ...(key ? { resend_key: key.trim() } : {}) }); setKey(""); toast("Settings saved"); setS(await admin.settings()); } catch (x: any) { toast(x.message); }
-      }}>Save alert settings</button></div>
+      <h2 className="h3">Drop numbers</h2>
+      <p className="muted">Published on the About page so brands can see how hard it is to get in. Leave at 0 to hide them.</p>
+      <div className="row2">
+        <Field label="Creators who applied" id="dap"><input id="dap" type="number" min={0} value={s.drop_applied} onChange={(e) => setS({ ...s, drop_applied: Math.max(0, +e.target.value || 0) })} /></Field>
+        <Field label="Creators who made it" id="dac"><input id="dac" type="number" min={0} value={s.drop_accepted} onChange={(e) => setS({ ...s, drop_accepted: Math.max(0, +e.target.value || 0) })} /></Field>
+      </div>
+      <div className="form-nav"><button className="btn btn--brand" onClick={() => {
+        if (s.drop_accepted > s.drop_applied) { toast("More made it than applied. Check the numbers."); return; }
+        save({ drop_applied: s.drop_applied, drop_accepted: s.drop_accepted }, "Drop numbers saved");
+      }}>Save Drop numbers</button></div>
+
+      <h2 className="h3" style={{ marginTop: 28 }}>Email</h2>
+      <p className="muted">Alerts about new entries, briefs, campaigns, messages and reports go to you. Brands who see matches but don't book get three follow-up emails, at 15 minutes, 24 hours and 72 hours. Follow-ups need all four fields.</p>
+      <Field label="Send alerts to" id="ane" hint="Brands' replies to follow-ups come here too."><input id="ane" type="email" value={s.notify_email} onChange={(e) => setS({ ...s, notify_email: e.target.value })} placeholder="you@example.com" /></Field>
+      <Field label="Send follow-ups from" id="afr" hint="An address on a domain you've verified in Resend, e.g. Samuel at Vetta <samuel@yourdomain.com>"><input id="afr" value={s.from_email} onChange={(e) => setS({ ...s, from_email: e.target.value })} placeholder="Samuel at Vetta <samuel@yourdomain.com>" /></Field>
+      <Field label="Your live site link" id="asu" hint="Used for the links in follow-up emails."><input id="asu" type="url" value={s.site_url} onChange={(e) => setS({ ...s, site_url: e.target.value })} placeholder={window.location.origin} /></Field>
+      <Field label="Resend API key" id="ark" optional hint={s.resend_key_set ? "A key is saved. Paste a new one only to replace it." : "From resend.com, API Keys. Needed for any email to send."}><input id="ark" type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" /></Field>
+      <div className="form-nav"><button className="btn btn--brand" onClick={() => {
+        if (!okEmail(s.notify_email.trim()) || !okEmail(s.from_email.trim())) { toast("Check the email addresses"); return; }
+        if (s.site_url && !/^https:\/\/\S+$/.test(s.site_url.trim())) { toast("Use the full link, starting with https://"); return; }
+        save({ notify_email: s.notify_email.trim().toLowerCase(), from_email: s.from_email.trim(), site_url: s.site_url.trim(), ...(key ? { resend_key: key.trim() } : {}) } as any, "Email settings saved");
+      }}>Save email settings</button></div>
     </section>
   );
 }

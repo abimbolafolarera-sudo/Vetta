@@ -28,6 +28,13 @@ export type Profile = {
   company?: string | null;
   website?: string | null;
   job_title?: string | null;
+  rate_from?: number | null; // USD, set by the creator
+  rate_to?: number | null;
+  jobs_done?: number; // scorecard, set by Vetta
+  on_time_pct?: number | null;
+  brand_rating?: number | null;
+  hook_rate?: number | null;
+  repeat_brands?: number;
   email?: string; // only ever filled for yourself or for admins
   sample?: boolean;
 };
@@ -93,8 +100,22 @@ export type Brief = {
   budget: string;
   timeline: string;
   brief: string;
-  status: "new" | "in_talks" | "won" | "closed";
+  status: "draft" | "new" | "in_talks" | "won" | "closed";
+  city?: string | null;
+  work_mode?: "remote" | "onsite" | "hybrid" | null;
+  whatsapp?: string | null;
+  whatsapp_optin?: boolean;
+  matched?: string[];
+  picked?: string[];
+  followup_stage?: number;
+  unsubscribed?: boolean;
+  token?: string;
 };
+
+// What a brand sees for a matched creator.
+export type CreatorCard = Pick<Profile, "id" | "handle" | "display_name" | "avatar_url" | "niches" | "formats" | "city" | "country" | "work_mode"
+  | "rate_from" | "rate_to" | "jobs_done" | "on_time_pct" | "brand_rating" | "hook_rate" | "vetted">;
+export type BriefDraft = { id: string; token: string; matches: CreatorCard[]; company?: string; contact_name?: string; email?: string; status?: Brief["status"]; unsubscribed?: boolean };
 
 export type Task = {
   id: string;
@@ -104,8 +125,9 @@ export type Task = {
   title: string;
   type: string;
   description: string;
-  pay_model: "per_1k_views" | "flat";
-  rate: number;
+  pay_model: "per_1k_views" | "flat" | "hybrid";
+  rate: number; // flat fee, or the rate per 1,000 views
+  base_fee?: number; // hybrid only
   budget: number;
   slots?: number | null;
   min_views: number;
@@ -141,7 +163,7 @@ export type Report = {
   target_type: "profile" | "video" | "message"; target_id: string; reason: string; status: "open" | "resolved";
 };
 
-export type Settings = { notify_email: string; resend_key_set: boolean; palette: string };
+export type Settings = { notify_email: string; resend_key_set: boolean; from_email: string; site_url: string; drop_applied: number; drop_accepted: number };
 
 export type Resource = {
   id: string; created_at: string;

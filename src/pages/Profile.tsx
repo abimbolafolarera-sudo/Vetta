@@ -6,7 +6,7 @@ import { getProfile, placeOf, videosByOwner } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { Profile, Video } from "../lib/types";
 import { go, href } from "../router";
-import { BriefForm, ReportSheet, SaveSheet } from "./Shared";
+import { BriefForm, ReportSheet, SaveSheet, Scorecard, rateText } from "./Shared";
 
 export default function ProfilePage({ handle }: { handle?: string }) {
   const { user } = useAuth();
@@ -54,6 +54,12 @@ export default function ProfilePage({ handle }: { handle?: string }) {
             {p.metrics.slice(0, 2).map((m) => <li key={m.label}><b>{m.value}</b> {m.label.toLowerCase()}</li>)}
           </ul>
           {p.bio && <p className="prof__bio">{p.bio}</p>}
+          {p.role === "creator" && p.vetted && (
+            <div className="prof__card">
+              <p className="prof__rate">{rateText(p)}</p>
+              <Scorecard c={{ jobs_done: p.jobs_done ?? 0, on_time_pct: p.on_time_pct, brand_rating: p.brand_rating, hook_rate: p.hook_rate }} />
+            </div>
+          )}
           <p className="prof__meta">
             {placeOf(p) && <span className="prof__place"><Icon name="pin" size={14} /> {placeOf(p)}</span>}
             {p.work_mode && <span>{workModeName(p.work_mode)}{p.open_to_travel ? ", open to travel" : ""}</span>}

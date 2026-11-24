@@ -168,9 +168,9 @@ function House({ k, active, signedIn }: { k: string; active: boolean; signedIn: 
     <div className="house house--brands">
       <div className="orbs orbs--alt" aria-hidden="true"><span /><span /><span /></div>
       <p className="house__kicker">For brands</p>
-      <h2 className="house__title">Hire vetted.</h2>
-      <p className="house__sub">Find creators by niche and city, shortlist them, then brief Vetta or post a campaign. We handle the introductions.</p>
-      <div className="house__ctas"><button className="btn btn--white" onClick={() => go("explore")}>Browse creators</button><button className="btn btn--glass" onClick={() => go("brands")}>Post a campaign</button></div>
+      <h2 className="house__title">Stop guessing who can deliver.</h2>
+      <p className="house__sub">Paste your brief and see vetted creators who fit it in seconds, with their rates and track record. Free to match.</p>
+      <div className="house__ctas"><button className="btn btn--white" onClick={() => go("brief")}>Get matched free</button><button className="btn btn--glass" onClick={() => go("explore")}>Explore creators</button></div>
     </div>
   );
 }

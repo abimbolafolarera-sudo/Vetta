@@ -142,6 +142,7 @@ export function Icon({ name, size = 24 }: { name: string; size?: number }) {
     send: <path d="M4 12l16-8-6 16-2.5-6.5z" />,
     x: <path d="M6 6l12 12M18 6L6 18" />,
     check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+    chart: <path d="M4 20h16M7 16v-5M12 16V6M17 16v-8" />,
     sound: <><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" /></>,
     mute: <><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M16 9.5l5 5M21 9.5l-5 5" /></>,
     more: <><circle cx="5.5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="18.5" cy="12" r="1.5" /></>,

@@ -151,6 +151,12 @@ export function Settings() {
             <div className="radios radios--row">{WORK_MODES.map((w) => <label key={w.slug} className={`radio ${f.work_mode === w.slug ? "is-on" : ""}`}><input type="radio" name="wm" checked={f.work_mode === w.slug} onChange={() => set("work_mode", w.slug)} /> {w.name}</label>)}</div>
           </Field>
           <label className="check"><input type="checkbox" checked={!!f.open_to_travel} onChange={(e) => set("open_to_travel", e.target.checked)} /><span>Open to travel for paid gigs</span></label>
+          <Field label="Your rate per video, in US dollars" hint="Brands see this range when you match their brief. Your scorecard (briefs delivered, on-time rate, ratings) is filled in by Vetta from real work.">
+            <div className="row2">
+              <input aria-label="Rate from" type="number" min={0} inputMode="numeric" placeholder="From, e.g. 150" value={f.rate_from ?? ""} onChange={(e) => set("rate_from", e.target.value === "" ? null : Math.max(0, Math.round(+e.target.value)))} />
+              <input aria-label="Rate to" type="number" min={0} inputMode="numeric" placeholder="To, e.g. 400" value={f.rate_to ?? ""} onChange={(e) => set("rate_to", e.target.value === "" ? null : Math.max(0, Math.round(+e.target.value)))} />
+            </div>
+          </Field>
         </>}
         {user.role === "brand" && <div className="row2">
           <Field label="Company" id="sco"><input id="sco" value={f.company ?? ""} onChange={(e) => set("company", e.target.value)} /></Field>

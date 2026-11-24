@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
-  AccountStatus, Brief, Conversation, Entry, Message, Profile, Report, Resource, Role, Settings, Shortlist, Task, TaskSubmission, Video,
+  AccountStatus, Brief, BriefDraft, Conversation, CreatorCard, Entry, Message, Profile, Report, Resource, Role, Settings, Shortlist, Task, TaskSubmission, Video,
 } from "./types";
 import { DEMO_PASSWORD, SEED_PROFILES, SEED_RESOURCES, SEED_TASKS, SEED_VIDEOS } from "./demo";
 import { config } from "../config";
@@ -25,10 +25,10 @@ type Store = {
   videos: Video[]; entries: Entry[]; likes: { user_id: string; video_id: string }[];
   shortlists: Shortlist[]; briefs: Brief[]; tasks: Task[]; submissions: TaskSubmission[];
   conversations: Conversation[]; messages: Message[]; reports: Report[]; resources: Resource[];
-  settings: { notify_email: string; palette: string };
+  settings: { notify_email: string; from_email: string; site_url: string; drop_applied: number; drop_accepted: number };
   session: string | null;
 };
-const KEY_STORE = "vetta-preview-v5";
+const KEY_STORE = "vetta-preview-v6";
 const mem: { s: Store | null; blobs: Record<string, string> } = { s: null, blobs: {} };
 function S(): Store {
   if (mem.s) return mem.s;
@@ -37,7 +37,7 @@ function S(): Store {
   mem.s = s ?? {
     profiles: SEED_PROFILES.map((p) => ({ ...p, password: DEMO_PASSWORD })),
     videos: SEED_VIDEOS, entries: [], likes: [], shortlists: [], briefs: [], tasks: SEED_TASKS, submissions: [],
-    conversations: [], messages: [], reports: [], resources: SEED_RESOURCES, settings: { notify_email: "", palette: "clay" }, session: null,
+    conversations: [], messages: [], reports: [], resources: SEED_RESOURCES, settings: { notify_email: "", from_email: "", site_url: "", drop_applied: 0, drop_accepted: 0 }, session: null,
   };
   return mem.s!;
 }
@@ -145,7 +145,7 @@ export async function listCreators(opts: { niche?: string; q?: string; place?: s
   return must(await r) as Profile[];
 }
 
-const EDITABLE = ["display_name", "handle", "avatar_url", "bio", "location", "city", "region", "country", "work_mode", "open_to_travel", "links", "niches", "formats", "metrics", "company", "website", "job_title"] as const;
+const EDITABLE = ["display_name", "handle", "avatar_url", "bio", "location", "city", "region", "country", "work_mode", "open_to_travel", "links", "niches", "formats", "metrics", "company", "website", "job_title", "rate_from", "rate_to"] as const;
 export const placeOf = (p: Pick<Profile, "city" | "region" | "country" | "location">) => [p.city, p.region, p.country].filter(Boolean).join(", ") || p.location || "";
 export async function updateMyProfile(patch: Partial<Profile>) {
   const clean: any = {}; for (const k of EDITABLE) if (k in patch) clean[k] = (patch as any)[k];
@@ -330,8 +330,53 @@ export async function submitBrief(b: Omit<Brief, "id" | "created_at" | "status" 
   const { data } = await sb!.auth.getSession();
   must(await sb!.from("briefs").insert({ ...b, brand_id: data.session?.user.id ?? null }));
 }
+/* ---------- instant matching: free, no account needed ---------- */
+const BUDGET_CAP: Record<string, number> = { "Under $500": 500, "$500 to $2,000": 2000, "$2,000 to $10,000": 10000 };
+const cardOf = (p: Profile): CreatorCard => ({ id: p.id, handle: p.handle, display_name: p.display_name, avatar_url: p.avatar_url, niches: p.niches, formats: p.formats,
+  city: p.city, country: p.country, work_mode: p.work_mode, rate_from: p.rate_from, rate_to: p.rate_to, jobs_done: p.jobs_done ?? 0,
+  on_time_pct: p.on_time_pct, brand_rating: p.brand_rating, hook_rate: p.hook_rate, vetted: p.vetted });
+function demoMatch(b: { niches: string[]; city?: string | null; work_mode?: string | null; budget: string; creator_id?: string | null }): CreatorCard[] {
+  const cap = BUDGET_CAP[b.budget];
+  const score = (p: Profile) => p.niches.filter((n) => b.niches.includes(n)).length * 3
+    + (b.city && p.city && p.city.toLowerCase() === b.city.toLowerCase() ? 2 : 0)
+    + (b.work_mode === "remote" || p.work_mode === "onsite" || p.work_mode === "hybrid" || p.open_to_travel ? 1 : 0)
+    + (!cap || p.rate_from == null || p.rate_from <= cap ? 2 : -2) + (p.brand_rating ?? 0) / 2 + Math.min(p.jobs_done ?? 0, 10) / 5;
+  return S().profiles.filter(isPublicCreator).filter((p) => p.id === b.creator_id || !b.niches.length || p.niches.some((n) => b.niches.includes(n)))
+    .sort((a, c) => Number(c.id === b.creator_id) - Number(a.id === b.creator_id) || score(c) - score(a)).slice(0, 5).map((p) => cardOf(strip(p)));
+}
+export type BriefInput = Omit<Brief, "id" | "created_at" | "status" | "brand_id">;
+/** Step 1: save the brief as a draft and get matched creators straight away. */
+export async function startBrief(b: BriefInput): Promise<BriefDraft> {
+  if (DEMO) {
+    const m = me(); const matches = demoMatch(b); const id = uid(); const token = uid();
+    S().briefs.unshift({ ...b, id, token, created_at: now(), status: "draft", brand_id: m?.role === "brand" ? m.id : null, matched: matches.map((x) => x.id), picked: [], followup_stage: 0 });
+    save(); return { id, token, matches };
+  }
+  const r = await sb!.rpc("start_brief", { p: b }); if (r.error) throw new Error(r.error.message);
+  return r.data as BriefDraft;
+}
+/** Reopen a draft from a follow-up email link. */
+export async function getBrief(id: string, token: string): Promise<BriefDraft> {
+  if (DEMO) {
+    const b = S().briefs.find((x) => x.id === id && x.token === token); if (!b) throw new Error("This link has expired.");
+    const matches = S().profiles.filter((p) => (b.matched ?? []).includes(p.id) && isPublicCreator(p)).map((p) => cardOf(strip(p)));
+    return { id, token, matches, company: b.company, contact_name: b.contact_name, email: b.email, status: b.status, unsubscribed: b.unsubscribed };
+  }
+  const r = await sb!.rpc("get_brief", { p_id: id, p_token: token }); if (r.error) throw new Error(r.error.message);
+  return r.data as BriefDraft;
+}
+/** Step 2: book through Vetta. The brief goes to the team and follow-up emails stop. */
+export async function confirmBrief(id: string, token: string, picked: string[]) {
+  if (DEMO) { const b = S().briefs.find((x) => x.id === id && x.token === token); if (b && b.status === "draft") { b.status = "new"; b.picked = picked; const m = me(); if (!b.brand_id && m?.role === "brand") b.brand_id = m.id; } save(); return; }
+  const r = await sb!.rpc("confirm_brief", { p_id: id, p_token: token, p_picked: picked }); if (r.error) throw new Error(r.error.message);
+}
+export async function stopBriefEmails(id: string, token: string) {
+  if (DEMO) { const b = S().briefs.find((x) => x.id === id && x.token === token); if (b) b.unsubscribed = true; save(); return; }
+  const r = await sb!.rpc("stop_brief_emails", { p_id: id, p_token: token }); if (r.error) throw new Error(r.error.message);
+}
+
 export async function myBriefs(): Promise<Brief[]> {
-  if (DEMO) { const m = me(); return m ? clone(S().briefs.filter((b) => b.brand_id === m.id)) : []; }
+  if (DEMO) { const m = me(); return m ? clone(S().briefs.filter((b) => b.brand_id === m.id && b.status !== "draft")) : []; }
   const { data } = await sb!.auth.getSession(); if (!data.session) return [];
   return must(await sb!.from("briefs").select("*").eq("brand_id", data.session.user.id).order("created_at", { ascending: false })) as Brief[];
 }
@@ -392,8 +437,8 @@ export async function mySubmissions(): Promise<TaskSubmission[]> {
 }
 
 /* ============================ messages: everyone talks to the Vetta team ============================ */
-export async function publicSettings(): Promise<{ palette?: string }> {
-  if (DEMO) return { palette: S().settings.palette };
+export async function publicSettings(): Promise<{ drop_applied?: number; drop_accepted?: number }> {
+  if (DEMO) { const { drop_applied, drop_accepted } = S().settings; return { drop_applied, drop_accepted }; }
   const r = await sb!.rpc("public_settings");
   return (r.data as any) ?? {};
 }
@@ -549,10 +594,11 @@ export const admin = {
   },
   async settings(): Promise<Settings> {
     if (DEMO) return { ...S().settings, resend_key_set: false };
-    const r = must(await sb!.from("settings").select("notify_email, resend_key, palette").eq("id", 1).maybeSingle()) as any;
-    return { notify_email: r?.notify_email ?? "", resend_key_set: !!r?.resend_key, palette: r?.palette ?? "clay" };
+    const r = must(await sb!.from("settings").select("notify_email, resend_key, from_email, site_url, drop_applied, drop_accepted").eq("id", 1).maybeSingle()) as any;
+    return { notify_email: r?.notify_email ?? "", resend_key_set: !!r?.resend_key, from_email: r?.from_email ?? "", site_url: r?.site_url ?? "",
+      drop_applied: r?.drop_applied ?? 0, drop_accepted: r?.drop_accepted ?? 0 };
   },
-  async saveSettings(p: { notify_email?: string; resend_key?: string; palette?: string }) {
+  async saveSettings(p: { notify_email?: string; resend_key?: string; from_email?: string; site_url?: string; drop_applied?: number; drop_accepted?: number }) {
     if (DEMO) { const { resend_key: _k, ...rest } = p; Object.assign(S().settings, rest); save(); return; }
     must(await sb!.from("settings").update(p).eq("id", 1));
   },

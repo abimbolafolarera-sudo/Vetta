@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { A, Avatar, Icon, Logo, Sheet } from "./ui";
-import { PalettePicker } from "./PalettePicker";
-import { currentPalette } from "../lib/palette";
 import { go } from "../router";
 import { EARN, config } from "../config";
 import { DEMO } from "../lib/api";
@@ -27,7 +25,7 @@ export function useNav(): NavItem[] {
 export function Shell({ page, children, immersive }: { page: string; children: React.ReactNode; immersive?: boolean }) {
   const { user } = useAuth();
   const nav = useNav().filter((n) => n.show);
-  const [menu, setMenu] = useState(false); const [join, setJoin] = useState(false); const [colours, setColours] = useState(false); const [pal, setPal] = useState(currentPalette());
+  const [menu, setMenu] = useState(false); const [join, setJoin] = useState(false);
   useEffect(() => { setMenu(false); setJoin(false); }, [page]);
   const canBack = page !== "home";
   const back = () => { if (window.history.length > 1) window.history.back(); else go("home"); };
@@ -36,7 +34,7 @@ export function Shell({ page, children, immersive }: { page: string; children: R
 
   return (
     <div className={`shell ${immersive ? "shell--immersive" : ""} ${DEMO ? "has-flag" : ""}`}>
-      {DEMO && <div className="flag">Preview mode: sample data on this device<button className="flag__btn" onClick={() => setColours(true)}>Try colours</button></div>}
+      {DEMO && <div className="flag">Preview mode: sample data on this device</div>}
 
       <aside className="side" aria-label="Main">
         <A page="home" className="side__logo" ariaLabel="Vetta home"><Logo /></A>
@@ -104,11 +102,6 @@ export function Shell({ page, children, immersive }: { page: string; children: R
           <A page="signup" arg="brand"><Icon name="brands" size={26} /><b>Sign up as a brand</b><span>Find vetted creators, post campaigns, brief Vetta.</span></A>
         </div>
         <p className="join-box__login">Have an account? <A page="login">Log in</A></p>
-      </Sheet>
-      <Sheet open={colours} onClose={() => setColours(false)} title="Try colours">
-        <p className="muted">This only changes the preview on your device. As admin, you set the colour for everyone in Admin, Settings.</p>
-        <PalettePicker value={pal} onPick={(id) => setPal(id as any)} />
-        <p className="muted small">Light or dark mode is in Settings.</p>
       </Sheet>
     </div>
   );

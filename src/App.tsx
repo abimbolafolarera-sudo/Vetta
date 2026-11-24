@@ -12,13 +12,13 @@ import { Me, Settings } from "./pages/Account";
 import { CampaignNew, Earn } from "./pages/Earn";
 import Learn from "./pages/Learn";
 import Inbox from "./pages/Inbox";
-import { About, BriefPage, Brands, Terms } from "./pages/Info";
+import { About, BriefPage, Brands, Founder, Terms } from "./pages/Info";
 import Admin from "./pages/Admin";
 
 const TITLES: Record<string, string> = {
   home: "Vetta", explore: "Explore — Vetta", u: "Vetta", me: "Profile — Vetta", settings: "Settings — Vetta", upload: "Upload — Vetta",
   enter: `Enter ${config.drop} — Vetta`, earn: "Earn Now — Vetta", campaign: "Post a campaign — Vetta", learn: "Learn — Vetta", inbox: "Inbox — Vetta", brands: "For brands — Vetta", brief: "Send a brief — Vetta",
-  login: "Log in — Vetta", signup: "Join Vetta", admin: "Admin — Vetta", about: "About — Vetta", terms: "Terms — Vetta",
+  login: "Log in — Vetta", signup: "Join Vetta", admin: "Admin — Vetta", about: "About — Vetta", founder: "A note from our founder — Vetta", terms: "Terms — Vetta",
 };
 
 export default function App() {
@@ -40,11 +40,12 @@ export default function App() {
     case "learn": view = <Learn />; break;
     case "inbox": view = <Inbox />; break;
     case "brands": view = <Brands />; break;
-    case "brief": view = <BriefPage />; break;
+    case "brief": view = <BriefPage arg={r.arg} />; break;
     case "login": view = <Login />; break;
     case "signup": view = <Signup role={r.arg} />; break;
     case "admin": view = <Admin />; break;
     case "about": view = <About />; break;
+    case "founder": view = <Founder />; break;
     case "terms": view = <Terms />; break;
     default: view = <main id="main" className="page empty-state"><h1 className="h2">This page doesn't exist.</h1><A page="home" className="btn btn--brand">Go to For You</A></main>;
   }

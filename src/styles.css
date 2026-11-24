@@ -1,10 +1,10 @@
-/* Vetta — default tokens (Clay). The chosen palette overrides these at runtime (src/lib/palette.ts). */
+/* Vetta: Ink and Coral. src/lib/palette.ts sets the same tokens at runtime, including dark mode. */
 :root, [data-theme="light"] {
-  --bg: #F7EFE6; --bg-2: #FBF6F0; --surface: #EFE3D6; --surface-2: #E6D7C6; --hover: #DDCBB7;
-  --line: rgba(36,22,15,.10); --line-2: rgba(36,22,15,.18);
-  --text: #24160F; --text-2: #4A3426; --text-3: #7D6656;
-  --brand: #A8461F; --brand-hi: #8E3A18; --brand-soft: rgba(168,70,31,.12); --on-brand: #FBF6F0;
-  --accent: #D9A35B; --accent-ink: #24160F; --feature: #7A2F12;
+  --bg: #FBFAF8; --bg-2: #FFFFFF; --surface: #F1EFEC; --surface-2: #E7E4E0; --hover: #DDD9D4;
+  --line: rgba(20,18,16,.09); --line-2: rgba(20,18,16,.17);
+  --text: #141210; --text-2: #3A3734; --text-3: #75706B;
+  --brand: #141210; --brand-hi: #2B2825; --brand-soft: rgba(255,111,89,.14); --on-brand: #FBFAF8;
+  --accent: #FF6F59; --accent-ink: #141210; --feature: #141210;
   --like: #D9473A; --ok: #1F7A4D; --warn: #9A6200; --err: #C0392B;
   --shadow: 0 20px 50px -24px rgba(30,20,10,.35);
   color-scheme: light;
@@ -453,7 +453,7 @@ textarea { resize: vertical; }
 
 /* Brands / about */
 .brands-hero { padding: 20px 0 10px; }
-.features { list-style: none; padding: 0; margin: 24px 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.features { list-style: none; padding: 0; margin: 24px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .features .card { margin: 0; }
 .feat-i { width: 42px; height: 42px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; margin-bottom: 12px; }
 @media (max-width: 900px) { .features { grid-template-columns: 1fr 1fr; } }
@@ -623,3 +623,68 @@ button.arow:hover { background: var(--surface); }
 .top__join { padding: 8px 14px; }
 .auth__new { margin-top: 18px; display: grid; gap: 8px; }
 .auth__new p { margin: 0; color: var(--text-3); }
+
+/* ---------- instant matching ---------- */
+.matches__head { margin-bottom: 14px; }
+.match-list { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; }
+.match { display: grid; grid-template-columns: auto auto 1fr; gap: 14px; align-items: start; padding: 14px; border-radius: 14px; background: var(--bg); border: 1.5px solid var(--line); transition: border-color .15s; }
+.match.is-on { border-color: var(--accent); }
+.match__pick input { width: 20px; height: 20px; margin-top: 15px; accent-color: var(--accent); }
+.match__name { font-weight: 800; font-size: 1.02rem; display: flex; align-items: center; gap: 5px; }
+.match__name a { color: var(--text); }
+.match__meta { color: var(--text-3); font-size: .86rem; margin: 2px 0 6px; }
+.match__rate { font-weight: 750; font-size: .92rem; margin-bottom: 8px; }
+.matches__cta { display: grid; gap: 8px; justify-items: start; }
+.matches__cta .small { max-width: 56ch; }
+
+/* scorecard: numbers from delivered work */
+.score { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; }
+.score div { display: flex; flex-direction: column-reverse; }
+.score dt { font-size: .76rem; color: var(--text-3); }
+.score dd { margin: 0; font-weight: 850; font-size: 1.2rem; font-stretch: 85%; line-height: 1.1; }
+.score--compact dd { font-size: 1rem; }
+.score--new { font-size: .82rem; color: var(--text-3); }
+.prof__card { display: grid; gap: 10px; padding: 14px 16px; border-radius: 14px; background: var(--surface); margin: 12px 0; max-width: 520px; }
+.prof__rate { font-weight: 800; }
+
+/* ---------- about ---------- */
+.about-hero .h1 { font-size: clamp(2rem, 5vw, 3.1rem); max-width: 18ch; }
+.about-hero .lede + .lede { margin-top: 12px; }
+.about-sec { margin: 30px 0; }
+.diff { display: grid; gap: 0; border-top: 1px solid var(--line-2); }
+.diff__row { display: grid; grid-template-columns: minmax(180px, 34%) 1fr; gap: 8px 24px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.diff__row .h3 { margin: 0; font-size: 1.15rem; }
+.diff__row p { color: var(--text-2); }
+@media (max-width: 640px) { .diff__row { grid-template-columns: 1fr; } }
+.steps { list-style: none; counter-reset: s; padding: 0; margin: 6px 0 16px; display: grid; gap: 14px; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; column-gap: 12px; }
+.steps li::before { content: counter(s); grid-row: span 2; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-weight: 850; display: grid; place-items: center; font-size: .9rem; }
+.steps b { font-weight: 800; }
+.steps span { color: var(--text-2); }
+.drop-stat { padding: 14px 16px; border-radius: 12px; background: var(--bg); border-left: 4px solid var(--accent); }
+.card--quiet { background: transparent; border: 1.5px solid var(--line-2); }
+.founder-link { display: grid; gap: 6px; padding: 26px; border-radius: var(--r); background: var(--feature) var(--print-on-brand); background-size: 140px; color: #fff; text-decoration: none; margin: 30px 0; }
+.founder-link__k { font-size: .82rem; font-weight: 800; color: var(--accent); }
+.founder-link__t { font-size: clamp(1.4rem, 3.4vw, 2rem); font-weight: 850; font-stretch: 85%; line-height: 1.1; }
+.founder-link__by { font-size: .9rem; opacity: .8; text-decoration: underline; text-underline-offset: 3px; }
+.about-close { text-align: center; padding: 24px 0 40px; }
+.about-close__t { font-weight: 850; font-stretch: 85%; font-size: clamp(1.3rem, 3vw, 1.7rem); margin-bottom: 14px; }
+.about-close .row-btns { justify-content: center; }
+
+/* ---------- founder note ---------- */
+.founder-note { max-width: 680px; }
+.founder-note__k { font-weight: 800; font-size: .85rem; color: var(--accent); margin-bottom: 8px; }
+.founder-note .h1 { font-size: clamp(2.1rem, 6vw, 3.3rem); margin-bottom: 26px; }
+.founder-note__body p { font-size: 1.12rem; line-height: 1.7; color: var(--text-2); margin-bottom: 18px; max-width: 64ch; }
+.founder-note__body b { color: var(--text); }
+.founder-note__pull { font-size: clamp(1.4rem, 3.4vw, 1.8rem) !important; line-height: 1.25 !important; font-weight: 850; font-stretch: 85%; color: var(--text) !important; border-left: 4px solid var(--accent); padding-left: 16px; margin: 28px 0 !important; }
+.founder-note__sign { display: flex; gap: 14px; align-items: center; padding: 22px 0; margin: 10px 0 20px; border-top: 1px solid var(--line-2); }
+.founder-note__sign div { display: grid; }
+.founder-note__sign b { font-size: 1.1rem; }
+.founder-note__sign span { color: var(--text-3); font-size: .9rem; }
+.founder-note__sign a { color: var(--text); font-weight: 700; font-size: .9rem; }
+
+/* ---------- Earn Now: its own look, apart from the vetted side ---------- */
+.earn-head { border-top: 5px solid var(--accent); }
+.earn-open { font-size: .74rem; font-weight: 800; padding: 3px 9px; border-radius: 99px; background: var(--accent); color: var(--accent-ink); }
+.earn-path { margin-top: 10px; font-weight: 700; font-size: .95rem; }

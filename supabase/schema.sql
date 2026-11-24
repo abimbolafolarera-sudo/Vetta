@@ -1,5 +1,6 @@
 -- Vetta database: accounts, profiles, videos, Drops, brands, Tasks, messages, moderation.
--- Paste this whole file into Supabase > SQL Editor > New query, then Run. Run once on a fresh project.
+-- This runs automatically on the first deploy (scripts/migrate.mjs). You can also paste it into
+-- Supabase > SQL Editor > New query and Run it once on a fresh project.
 
 create extension if not exists pgcrypto;
 create extension if not exists pg_net;  -- lets the database send email alerts
@@ -28,7 +29,15 @@ create table public.profiles (
   vetted_drop text,
   status text not null default 'active' check (status in ('active','suspended','banned')),
   plan text not null default 'free' check (plan in ('free','pro')),
-  company text, website text, job_title text
+  company text, website text, job_title text,
+  -- rates in USD, set by the creator
+  rate_from integer check (rate_from >= 0), rate_to integer check (rate_to >= 0),
+  -- scorecard, set only by Vetta from delivered work
+  jobs_done integer not null default 0,
+  on_time_pct smallint check (on_time_pct between 0 and 100),
+  brand_rating numeric(2,1) check (brand_rating between 0 and 5),
+  hook_rate smallint check (hook_rate between 0 and 100),
+  repeat_brands integer not null default 0
 );
 create index on public.profiles using gin (niches);
 
@@ -39,7 +48,10 @@ create table public.settings (
   id int primary key default 1 check (id = 1),
   notify_email text not null default '',
   resend_key text not null default '',
-  palette text not null default 'clay' check (palette in ('clay','cocoa','persimmon','coral','burgundy'))
+  from_email text not null default '',      -- e.g. Vetta <hello@yourdomain.com>, a domain verified in Resend
+  site_url text not null default '',        -- your live link, used in follow-up emails
+  drop_applied integer not null default 0,  -- published on the About page
+  drop_accepted integer not null default 0
 );
 insert into public.settings (id) values (1);
 
@@ -114,8 +126,20 @@ create table public.briefs (
   niches text[] not null default '{}',
   budget text not null, timeline text not null,
   brief text not null check (char_length(brief) between 20 and 5000),
-  status text not null default 'new' check (status in ('new','in_talks','won','closed'))
+  -- draft = matched but not booked yet (gets follow-ups); new = sent to Vetta
+  status text not null default 'new' check (status in ('draft','new','in_talks','won','closed')),
+  token uuid not null default gen_random_uuid(),
+  city text check (char_length(city) <= 60),
+  work_mode text check (work_mode in ('remote','onsite','hybrid')),
+  whatsapp text check (char_length(whatsapp) <= 30),
+  whatsapp_optin boolean not null default false,
+  matched uuid[] not null default '{}',
+  picked uuid[] not null default '{}',
+  followup_stage smallint not null default 0,
+  unsubscribed boolean not null default false,
+  confirmed_at timestamptz
 );
+create index on public.briefs (status, created_at);
 
 create table public.tasks (
   id uuid primary key default gen_random_uuid(),
@@ -124,8 +148,10 @@ create table public.tasks (
   brand text not null, title text not null,
   type text not null default 'ugc' check (type in ('ugc','clip','post','review','mention','stitch','repost','event')),
   description text not null default '',
-  pay_model text not null default 'per_1k_views' check (pay_model in ('per_1k_views','flat')),
+  -- flat = fee per post; per_1k_views = pay per 1,000 verified views; hybrid = base fee plus a views bonus
+  pay_model text not null default 'flat' check (pay_model in ('per_1k_views','flat','hybrid')),
   rate numeric(10,2) not null check (rate >= 0),
+  base_fee numeric(10,2) not null default 0 check (base_fee >= 0),
   budget numeric(12,2) not null default 0,
   slots integer, min_views integer not null default 0,
   platforms text[] not null default '{}',
@@ -210,10 +236,13 @@ begin
   nm := left(coalesce(nullif(trim(new.raw_user_meta_data->>'display_name'), ''), split_part(new.email, '@', 1)), 60);
   base := left(regexp_replace(lower(nm), '[^a-z0-9]+', '.', 'g'), 18); base := trim(both '.' from base);
   if char_length(base) < 3 then base := 'creator'; end if;
+  -- The very first account on a new site becomes the admin.
+  if not exists (select 1 from public.profiles where role = 'admin') then r := 'admin'; end if;
   h := base;
   while exists (select 1 from public.profiles where handle = h) loop n := n + 1; h := base || n::text; end loop;
   insert into public.profiles (id, role, handle, display_name, company)
     values (new.id, r, h, nm, nullif(new.raw_user_meta_data->>'company', ''));
+  if r = 'admin' then update public.profiles set vetted = true where id = new.id; end if;
   insert into public.account_emails (user_id, email) values (new.id, lower(new.email));
   return new;
 end $$;
@@ -224,6 +253,8 @@ create or replace function public.protect_profile() returns trigger language plp
 begin
   if current_user in ('anon', 'authenticated') and not public.is_admin() then
     new.role := old.role; new.vetted := old.vetted; new.vetted_drop := old.vetted_drop; new.status := old.status; new.plan := old.plan;
+    new.jobs_done := old.jobs_done; new.on_time_pct := old.on_time_pct; new.brand_rating := old.brand_rating;
+    new.hook_rate := old.hook_rate; new.repeat_brands := old.repeat_brands;
   end if;
   return new;
 end $$;
@@ -264,7 +295,7 @@ end $$;
 grant execute on function public.my_thread() to authenticated;
 
 create or replace function public.public_settings() returns json language sql stable security definer set search_path = public as $$
-  select json_build_object('palette', palette) from public.settings where id = 1;
+  select json_build_object('drop_applied', drop_applied, 'drop_accepted', drop_accepted) from public.settings where id = 1;
 $$;
 grant execute on function public.public_settings() to anon, authenticated;
 
@@ -355,7 +386,10 @@ begin
     select display_name || ' (@' || handle || ')' into who from public.profiles where id = new.user_id;
     perform public.send_alert('New ' || new.drop || ' entry: ' || who, who || ' from ' || new.country || ' entered ' || new.drop || '.' || chr(10) || 'Niches: ' || array_to_string(new.niches, ', ') || chr(10) || 'Review it in Admin > Entries.');
   elsif tg_table_name = 'briefs' then
-    perform public.send_alert('New brief: ' || new.company, new.contact_name || ' (' || new.email || ') from ' || new.company || chr(10) || new.budget || ', ' || new.timeline || chr(10) || chr(10) || new.brief);
+    if new.status = 'new' then
+      perform public.send_alert('New brief: ' || new.company, new.contact_name || ' (' || new.email || ') from ' || new.company || chr(10) || new.budget || ', ' || new.timeline
+        || case when new.whatsapp_optin and coalesce(new.whatsapp, '') <> '' then chr(10) || 'WhatsApp: ' || new.whatsapp else '' end || chr(10) || chr(10) || new.brief);
+    end if;
   elsif tg_table_name = 'tasks' then
     if new.status = 'pending' then
       perform public.send_alert('Campaign to review: ' || new.title, new.brand || ' posted a ' || new.type || ' campaign with a $' || new.budget || ' budget. Approve it in Admin > Campaigns.');
@@ -370,9 +404,144 @@ begin
 end $$;
 create trigger entries_alert after insert on public.entries for each row execute function public.alert_on_insert();
 create trigger briefs_alert after insert on public.briefs for each row execute function public.alert_on_insert();
+create trigger briefs_confirm_alert after update of status on public.briefs for each row
+  when (old.status = 'draft' and new.status = 'new') execute function public.alert_on_insert();
 create trigger tasks_alert after insert on public.tasks for each row execute function public.alert_on_insert();
 create trigger reports_alert after insert on public.reports for each row execute function public.alert_on_insert();
 create trigger messages_alert after insert on public.messages for each row execute function public.alert_on_insert();
+
+-- ===================================================================== instant matching
+-- Public card for a matched creator: no private fields.
+create or replace function public.creator_card(p public.profiles) returns json language sql stable as $$
+  select json_build_object('id', p.id, 'handle', p.handle, 'display_name', p.display_name, 'avatar_url', p.avatar_url,
+    'niches', p.niches, 'formats', p.formats, 'city', p.city, 'country', p.country, 'work_mode', p.work_mode,
+    'rate_from', p.rate_from, 'rate_to', p.rate_to, 'jobs_done', p.jobs_done, 'on_time_pct', p.on_time_pct,
+    'brand_rating', p.brand_rating, 'hook_rate', p.hook_rate, 'vetted', p.vetted);
+$$;
+
+create or replace function public.budget_cap(p_budget text) returns integer language sql immutable as $$
+  select case p_budget when 'Under $500' then 500 when '$500 to $2,000' then 2000 when '$2,000 to $10,000' then 10000 else null end;
+$$;
+
+-- Best vetted creators for a brief: niche fit first, then place, budget and track record.
+create or replace function public.match_creators(p_niches text[], p_city text, p_mode text, p_budget text, p_creator uuid default null, p_limit int default 5)
+returns setof json language sql stable security definer set search_path = public as $$
+  select public.creator_card(p) from public.profiles p
+  where p.role = 'creator' and p.vetted and p.status = 'active'
+    and (p.id = p_creator or coalesce(cardinality(p_niches), 0) = 0 or p.niches && p_niches)
+  order by (p.id = p_creator) desc nulls last,
+    (cardinality(array(select unnest(p.niches) intersect select unnest(coalesce(p_niches, '{}')))) * 3
+     + case when coalesce(p_city, '') <> '' and lower(p.city) = lower(p_city) then 2 else 0 end
+     + case when p_mode = 'remote' or p.work_mode in ('onsite','hybrid') or p.open_to_travel then 1 else 0 end
+     + case when public.budget_cap(p_budget) is null or p.rate_from is null or p.rate_from <= public.budget_cap(p_budget) then 2 else -2 end
+     + coalesce(p.brand_rating, 0) / 2 + least(p.jobs_done, 10) / 5.0) desc,
+    p.created_at
+  limit greatest(1, least(p_limit, 8));
+$$;
+grant execute on function public.match_creators(text[], text, text, text, uuid, int) to anon, authenticated;
+
+-- Step 1 of a brief: save it as a draft and return matched creators straight away. No account needed.
+create or replace function public.start_brief(p jsonb) returns json language plpgsql security definer set search_path = public as $$
+declare b public.briefs; m json; ids uuid[]; recent int;
+begin
+  if coalesce(p->>'email', '') !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then raise exception 'Add a work email we can reply to.'; end if;
+  if coalesce(trim(p->>'company'), '') = '' or coalesce(trim(p->>'contact_name'), '') = '' then raise exception 'Add your name and company.'; end if;
+  select count(*) into recent from public.briefs where email = lower(trim(p->>'email')) and created_at > now() - interval '1 hour';
+  if recent >= 5 then raise exception 'You''ve sent a lot of briefs in the last hour. Try again later.'; end if;
+  select coalesce(json_agg(x), '[]'::json) into m from public.match_creators(
+    array(select jsonb_array_elements_text(coalesce(p->'niches', '[]'))), p->>'city', p->>'work_mode', p->>'budget', nullif(p->>'creator_id', '')::uuid) x;
+  select coalesce(array_agg((e->>'id')::uuid), '{}') into ids from json_array_elements(m) e;
+  insert into public.briefs (brand_id, creator_id, company, contact_name, email, niches, budget, timeline, brief, status, city, work_mode, whatsapp, whatsapp_optin, matched)
+  values (auth.uid(), nullif(p->>'creator_id', '')::uuid, left(trim(p->>'company'), 160), left(trim(p->>'contact_name'), 120), lower(trim(p->>'email')),
+    array(select jsonb_array_elements_text(coalesce(p->'niches', '[]'))), p->>'budget', coalesce(nullif(p->>'timeline', ''), 'Flexible'), coalesce(p->>'brief', ''), 'draft',
+    nullif(trim(p->>'city'), ''), nullif(p->>'work_mode', ''), nullif(trim(p->>'whatsapp'), ''), coalesce((p->>'whatsapp_optin')::boolean, false), ids)
+  returning * into b;
+  return json_build_object('id', b.id, 'token', b.token, 'matches', m);
+end $$;
+grant execute on function public.start_brief(jsonb) to anon, authenticated;
+
+-- Reopen a draft from the link in a follow-up email.
+create or replace function public.get_brief(p_id uuid, p_token uuid) returns json language plpgsql stable security definer set search_path = public as $$
+declare b public.briefs; m json;
+begin
+  select * into b from public.briefs where id = p_id and token = p_token; if b.id is null then raise exception 'This link has expired.'; end if;
+  select coalesce(json_agg(public.creator_card(p)), '[]'::json) into m from public.profiles p where p.id = any(b.matched) and p.vetted and p.status = 'active';
+  return json_build_object('id', b.id, 'token', b.token, 'company', b.company, 'contact_name', b.contact_name, 'email', b.email,
+    'status', b.status, 'unsubscribed', b.unsubscribed, 'matches', m);
+end $$;
+grant execute on function public.get_brief(uuid, uuid) to anon, authenticated;
+
+-- Step 2: the brand books through Vetta. The brief goes to the team and follow-ups stop.
+create or replace function public.confirm_brief(p_id uuid, p_token uuid, p_picked uuid[]) returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.briefs set status = 'new', picked = coalesce(p_picked, '{}'), confirmed_at = now(),
+    brand_id = coalesce(brand_id, case when public.my_role() = 'brand' then auth.uid() end)
+  where id = p_id and token = p_token and status = 'draft';
+end $$;
+grant execute on function public.confirm_brief(uuid, uuid, uuid[]) to anon, authenticated;
+
+create or replace function public.stop_brief_emails(p_id uuid, p_token uuid) returns void language plpgsql security definer set search_path = public as $$
+begin update public.briefs set unsubscribed = true where id = p_id and token = p_token; end $$;
+grant execute on function public.stop_brief_emails(uuid, uuid) to anon, authenticated;
+
+-- ===================================================================== follow-ups for brands who match but don't book
+-- 15 minutes, 24 hours and 72 hours after a draft brief. Stops when they book or tap "stop these emails".
+create or replace function public.send_brief_followups() returns integer language plpgsql security definer set search_path = public as $$
+declare s public.settings; b public.briefs; n int := 0; link text; names text; first text; subj text; body text;
+begin
+  select * into s from public.settings where id = 1;
+  if s.resend_key = '' or s.from_email = '' or s.site_url = '' then return 0; end if;
+  for b in select * from public.briefs where status = 'draft' and not unsubscribed and followup_stage < 3
+      and created_at > now() - interval '10 days'
+      and ((followup_stage = 0 and created_at < now() - interval '15 minutes')
+        or (followup_stage = 1 and created_at < now() - interval '24 hours')
+        or (followup_stage = 2 and created_at < now() - interval '72 hours'))
+      order by created_at limit 50 loop
+    link := rtrim(s.site_url, '/') || '/brief/' || b.id || '.' || b.token;
+    first := split_part(b.contact_name, ' ', 1);
+    select string_agg(display_name, ', ') into names from public.profiles where id = any(b.matched);
+    if b.followup_stage = 0 then
+      subj := 'Your Vetta matches for ' || b.company;
+      body := 'Hi ' || first || ',' || chr(10) || chr(10)
+        || 'Your brief matched with ' || coalesce(names, 'vetted creators') || '.' || chr(10)
+        || 'Their work, rates and track record are here: ' || link || chr(10) || chr(10)
+        || 'When you''re ready, tap "Book through Vetta". We tailor the brief to each creator, agree timelines and handle approvals, so you only see the final work.' || chr(10) || chr(10)
+        || 'Samuel' || chr(10) || 'Founder, Vetta';
+    elsif b.followup_stage = 1 then
+      subj := 'How your ' || b.company || ' creators were chosen';
+      body := 'Hi ' || first || ',' || chr(10) || chr(10)
+        || 'Every creator on Vetta got in on creativity and reliability, not follower count. Most people who apply don''t make it.' || chr(10)
+        || 'If a video misses the brief, we reshoot it or replace the creator.' || chr(10) || chr(10)
+        || 'Your matches are still here: ' || link || chr(10) || chr(10)
+        || 'Questions? Just reply to this email.' || chr(10) || chr(10) || 'Samuel, Vetta';
+    else
+      subj := 'Last note about your ' || b.company || ' brief';
+      body := 'Hi ' || first || ',' || chr(10) || chr(10)
+        || 'I''ll stop emailing about this brief after today. Good creators book up, so if the timing works, lock them in here: ' || link || chr(10) || chr(10)
+        || 'Or reply with what you need and I''ll put a shortlist together myself.' || chr(10) || chr(10) || 'Samuel, Vetta';
+    end if;
+    body := body || chr(10) || chr(10) || 'Don''t want these emails? Open the link above and tap "Stop these emails".';
+    begin
+      perform net.http_post(
+        url := 'https://api.resend.com/emails',
+        headers := jsonb_build_object('Authorization', 'Bearer ' || s.resend_key, 'Content-Type', 'application/json'),
+        body := jsonb_build_object('from', s.from_email, 'to', jsonb_build_array(b.email), 'subject', subj, 'text', body)
+          || case when s.notify_email <> '' then jsonb_build_object('reply_to', s.notify_email) else '{}'::jsonb end);
+    exception when others then raise warning 'Follow-up not sent: %', sqlerrm;
+    end;
+    update public.briefs set followup_stage = followup_stage + 1 where id = b.id;
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+revoke execute on function public.send_brief_followups() from public, anon, authenticated;
+
+-- Run the follow-ups every 5 minutes (pg_cron is built into Supabase).
+do $$ begin
+  create extension if not exists pg_cron;
+  perform cron.schedule('vetta-followups', '*/5 * * * *', 'select public.send_brief_followups()');
+exception when others then raise warning 'Follow-up schedule not set: %', sqlerrm;
+end $$;
 
 -- ===================================================================== row level security
 alter table public.profiles enable row level security;
@@ -420,8 +589,8 @@ create policy entries_admin on public.entries for update using (public.is_admin(
 create policy shortlists_own on public.shortlists for all using (brand_id = auth.uid() and public.is_active())
   with check (brand_id = auth.uid() and public.my_role() = 'brand' and public.is_active());
 
-create policy briefs_insert on public.briefs for insert to anon, authenticated with check (status = 'new' and (brand_id is null or brand_id = auth.uid()));
-create policy briefs_read on public.briefs for select using ((brand_id is not null and brand_id = auth.uid()) or public.is_admin());
+create policy briefs_insert on public.briefs for insert to anon, authenticated with check (status = 'new' and followup_stage = 0 and (brand_id is null or brand_id = auth.uid()));
+create policy briefs_read on public.briefs for select using ((brand_id is not null and brand_id = auth.uid() and status <> 'draft') or public.is_admin());
 create policy briefs_admin on public.briefs for update using (public.is_admin()) with check (public.is_admin());
 
 create policy tasks_read on public.tasks for select using (status = 'live' or created_by = auth.uid() or public.is_admin());
@@ -472,7 +641,11 @@ create policy assets_brand_insert on storage.objects for insert to authenticated
   with check (bucket_id = 'campaign-assets' and (storage.foldername(name))[1] = auth.uid()::text and public.my_role() in ('brand','admin') and public.is_active());
 create policy assets_admin on storage.objects for all to authenticated using (bucket_id = 'campaign-assets' and public.is_admin()) with check (bucket_id = 'campaign-assets' and public.is_admin());
 
--- ===================================================================== make yourself the admin
--- 1. Sign up on your live site with your own email (choose "I'm a creator", it doesn't matter).
--- 2. Run this line with your email:
---    update public.profiles set role = 'admin', vetted = true where id = (select user_id from public.account_emails where email = 'YOUR-EMAIL-HERE');
+-- ===================================================================== admin
+-- The first account created on the live site becomes the admin automatically (see handle_new_user).
+-- To make someone else an admin later, run this with their email:
+--    update public.profiles set role = 'admin', vetted = true where id = (select user_id from public.account_emails where email = 'THEIR-EMAIL');
+
+-- Records which update files in supabase/migrations have run (used by scripts/migrate.mjs).
+create table if not exists public._vetta_migrations (name text primary key, ran_at timestamptz not null default now());
+alter table public._vetta_migrations enable row level security;
