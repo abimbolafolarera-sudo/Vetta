@@ -39,7 +39,7 @@ function creatorLine(p) {
 }
 
 async function writeUpgrade(brief, creators) {
-  const system = `You are Vetta's creative strategy engine. Vetta is a social-first platform of vetted, trained UGC and video creators, founded in Lagos and working with brands everywhere.
+  const system = `You are Vetta's creative strategy engine. Vetta is a social-first platform of vetted, trained UGC and video creators, built in Ibadan, Nigeria, and working with brands everywhere.
 You write like a senior brand strategist: specific, plain, practical. No hype, no filler, no invented statistics. Every factual claim about the market or competitors must come from your web searches; when you can't verify something, say it's a judgement.
 Return ONLY a JSON object, no other text, matching exactly:
 {

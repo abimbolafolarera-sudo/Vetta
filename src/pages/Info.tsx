@@ -114,7 +114,7 @@ export function About() {
       )}
 
       <section className="about-close">
-        <p className="about-close__t">Founded in Lagos. Built for brands everywhere.</p>
+        <p className="about-close__t">Built in Ibadan. For brands everywhere.</p>
         <div className="row-btns"><A page="explore" className="btn btn--brand">Explore creators</A><A page="brief" className="btn btn--soft">Send a brief</A></div>
       </section>
     </main>
@@ -136,7 +136,7 @@ export function Founder() {
         <p>That is what Vetta is.</p>
         <p>A Vetta creator is someone a brand can bank on, whether they have 2,000 followers or 2 million. Getting in is hard on purpose. Once you're in, we train you, we show your results to the world, and we bring you briefs that fit.</p>
         <p>For brands, it means you stop guessing. Watch real work, shortlist the creators you love, and send your brief to us. We'll tailor it and match it to the people who can deliver it. Everything runs through Vetta, so someone is always accountable.</p>
-        <p>Vetta started in Lagos, because Lagos taught me that social content moves culture and commerce at the same time. It's built for brands everywhere, because good creative doesn't need a passport.</p>
+        <p>Vetta is being built in Ibadan, on purpose. Great creators aren't only in Lagos, and great brands aren't only in Nigeria. It's built for brands everywhere, because good creative doesn't need a passport.</p>
         <p><b>My promise to brands:</b> no untailored creators, no wasted budgets, no silence.<br /><b>My promise to creators:</b> if you're good, we'll make sure the world sees it.</p>
         <p>Vetta starts with creators. It won't end there.</p>
       </div>
