@@ -21,8 +21,14 @@ export const PALETTES: Palette[] = [
 export const getPalette = (id?: string | null) => PALETTES.find((p) => p.id === id) ?? PALETTES[0];
 
 function printFor(color: string, opacity: number) {
-  // Fine geometric linework: small arcs, dots and dashes. Tinted to the palette.
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='none' stroke='${color}' stroke-opacity='${opacity}' stroke-width='1.3' stroke-linecap='round'><path d='M10 30 a12 12 0 0 1 24 0'/><path d='M70 90 a12 12 0 0 1 24 0'/><path d='M60 20 h18 M86 54 h14 M14 78 h14'/><circle cx='100' cy='16' r='1.8'/><circle cx='40' cy='104' r='1.8'/><circle cx='48' cy='60' r='1.8'/><path d='M4 112 l8 -8 M108 104 l8 -8'/></g></svg>`;
+  // Vetta print: the sieve grid with adire motifs (Olokun ring, stripes, dots), tinted to the palette.
+  const o = opacity, c = color;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'><g fill='none' stroke='${c}' stroke-opacity='${o}' stroke-width='1.2'>`
+    + `<rect x='6' y='6' width='36' height='36' rx='6'/><circle cx='24' cy='24' r='9'/><circle cx='24' cy='24' r='3' fill='${c}' fill-opacity='${o}'/>`
+    + `<rect x='54' y='6' width='36' height='36' rx='6'/><path d='M61 17h22M61 24h22M61 31h22'/>`
+    + `<rect x='6' y='54' width='36' height='36' rx='6'/><path d='M10 86l28-28M10 72l14-14M24 86l14-14'/>`
+    + `<rect x='54' y='54' width='36' height='36' rx='6'/></g>`
+    + `<g fill='none' stroke='${c}' stroke-opacity='${o}' stroke-width='1.2'><rect x='63' y='63' width='18' height='18' rx='3'/></g><circle cx='72' cy='72' r='2.4' fill='${c}' fill-opacity='${o * 1.3}'/></svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 
@@ -33,8 +39,8 @@ export function applyPalette(_id?: string | null) {
   const t = dark ? p.dark : p.light;
   const root = document.documentElement.style;
   for (const [k, v] of Object.entries(t)) root.setProperty(k, v);
-  root.setProperty("--print", printFor(dark ? "#FFFFFF" : t["--brand"], dark ? 0.07 : 0.14));
-  root.setProperty("--print-on-brand", printFor("#FFFFFF", 0.13));
+  root.setProperty("--print", printFor(dark ? "#FFFFFF" : "#141210", dark ? 0.045 : 0.06));
+  root.setProperty("--print-on-brand", printFor("#FFFFFF", 0.065));
   root.setProperty("--feature", dark ? t["--surface"] : p.feature);
 }
 export const currentPalette = () => current;

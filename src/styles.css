@@ -66,9 +66,24 @@ button { font: inherit; color: inherit; }
 .logo { display: inline-flex; align-items: center; gap: 9px; }
 .logo__word { font-stretch: 80%; font-weight: 900; font-size: 1.6rem; letter-spacing: -.03em; line-height: 1; }
 .mark { flex: none; display: block; }
-.mark__tick { stroke-dasharray: 100; }
-.mark--draw .mark__tick { animation: draw .8s cubic-bezier(.65,0,.25,1) .1s both; }
-@keyframes draw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+.mark__bg { fill: #141210; }
+:root[data-theme="dark"] .mark__bg { fill: #1E1B19; stroke: rgba(251,250,248,.14); stroke-width: 1; }
+.mark__on { fill: #FF6F59; transform-box: fill-box; transform-origin: center; }
+.mark__off { fill: none; stroke: #FBFAF8; stroke-opacity: .38; stroke-width: .9; }
+.mark__motif { fill: none; stroke: #141210; stroke-width: .8; }
+.mark__dots { fill: #141210; stroke: none; }
+.mark--draw .mark__off { animation: sieveOff 1.1s ease-out both; }
+.mark--draw .mark__on { animation: sievePass .5s cubic-bezier(.3,1.4,.5,1) both; }
+.mark--draw .mark__motif { animation: fadeIn .4s ease-out 1s both; }
+@keyframes sieveOff { 0% { stroke-opacity: .9; fill: #FBFAF8; fill-opacity: .9; } 45% { fill-opacity: .9; stroke-opacity: .9; } 100% { fill-opacity: 0; stroke-opacity: .38; } }
+@keyframes sievePass { from { transform: scale(.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .mark--draw .mark__off, .mark--draw .mark__on, .mark--draw .mark__motif { animation: none; } }
+.intro { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: #141210; animation: introOut .45s ease-in 1.75s both; cursor: pointer; }
+.intro__in { display: grid; justify-items: center; gap: 18px; }
+.intro .logo__word { color: #FBFAF8; font-size: 2.6rem; animation: fadeIn .5s ease-out 1.05s both; }
+.intro .mark__bg { fill: #141210; stroke: none; }
+@keyframes introOut { to { opacity: 0; visibility: hidden; } }
 .verified { display: inline-block; vertical-align: -2px; flex: none; }
 
 /* Shell */
@@ -702,3 +717,4 @@ button.arow:hover { background: var(--surface); }
 .rep__brief{border-top:1px solid var(--line);padding-top:.8rem}
 .rep__next{margin-top:1rem}.rep__src{margin-top:.6rem;color:var(--text-3)}
 @media print{.side,.top,.tabbar,.backbar,.matches__head,.match-list,.matches__cta>.btn,.matches__cta>p{display:none!important}.rep{border:0}}
+.house .mark__bg, .top .mark__bg, .rail .mark__bg { stroke: rgba(251,250,248,.16); stroke-width: 1; }

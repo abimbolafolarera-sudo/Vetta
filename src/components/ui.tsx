@@ -10,11 +10,25 @@ export function A(props: { page: string; arg?: string; className?: string; child
 }
 
 /** The verified-tick V: white tick in a violet rounded square. Draws itself on load. */
+/** The sieve: 15 squares, 5 pass and form the V. The ones that pass carry adire motifs. */
+const CELLS: [number, number, boolean][] = [];
+for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) CELLS.push([c, r, (r === 0 && (c === 0 || c === 4)) || (r === 1 && (c === 1 || c === 3)) || (r === 2 && c === 2)]);
+const cx = (c: number) => 7 + c * 10.5, cy = (r: number) => 17.5 + r * 10.5;
 export function Mark({ size = 30, draw = false }: { size?: number; draw?: boolean }) {
+  const detail = size >= 40, faint = size >= 22;
+  let k = 0;
   return (
     <svg className={`mark ${draw ? "mark--draw" : ""}`} width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
-      <rect width="64" height="64" rx="18" fill="var(--brand)" />
-      <path className="mark__tick" d="M17 32.5 L28 44 L48 19.5" fill="none" stroke="var(--on-brand)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" pathLength={100} />
+      <rect width="64" height="64" rx="15" className="mark__bg" />
+      {CELLS.map(([c, r, on]) => on
+        ? <rect key={`${c}${r}`} className="mark__on" style={{ animationDelay: `${0.45 + (k++) * 0.08}s` }} x={cx(c)} y={cy(r)} width="8" height="8" rx="1.6" />
+        : faint ? <rect key={`${c}${r}`} className="mark__off" x={cx(c) + .45} y={cy(r) + .45} width="7.1" height="7.1" rx="1.4" /> : null)}
+      {detail && <g className="mark__motif">
+        <circle cx={cx(0) + 4} cy={cy(0) + 4} r="2.3" /><circle cx={cx(4) + 4} cy={cy(0) + 4} r="2.3" />
+        <path d={[1, 3].map((c) => [2.2, 4, 5.8].map((d) => `M${cx(c) + 1.6} ${cy(1) + d}h4.8`).join("")).join("")} />
+        <rect x={cx(2) + 2} y={cy(2) + 2} width="4" height="4" rx=".6" />
+        <g className="mark__dots"><circle cx={cx(0) + 4} cy={cy(0) + 4} r=".9" /><circle cx={cx(4) + 4} cy={cy(0) + 4} r=".9" /><circle cx={cx(2) + 4} cy={cy(2) + 4} r=".7" /></g>
+      </g>}
     </svg>
   );
 }

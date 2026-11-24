@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { A, Toaster } from "./components/ui";
+import { useEffect, useState } from "react";
+import { A, Mark, Toaster } from "./components/ui";
 import { Shell } from "./components/Shell";
 import { useRoute } from "./router";
 import { config } from "./config";
@@ -54,6 +54,17 @@ export default function App() {
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); const m = document.getElementById("main"); if (m) { m.setAttribute("tabindex", "-1"); m.focus(); } }}>Skip to content</a>
       <Shell page={page} immersive={page === "home"}>{view}</Shell>
       <Toaster />
+      <Intro />
     </>
   );
+}
+
+/** The sieve plays once per visit: squares fall away, five pass and form the V. */
+function Intro() {
+  const [show, setShow] = useState(() => {
+    try { if (sessionStorage.getItem("vetta-intro") || matchMedia("(prefers-reduced-motion: reduce)").matches) return false; sessionStorage.setItem("vetta-intro", "1"); return true; } catch { return false; }
+  });
+  useEffect(() => { if (show) { const t = setTimeout(() => setShow(false), 2300); return () => clearTimeout(t); } }, [show]);
+  if (!show) return null;
+  return <div className="intro" onClick={() => setShow(false)} aria-hidden="true"><div className="intro__in"><Mark size={132} draw /><span className="logo__word">vetta</span></div></div>;
 }
